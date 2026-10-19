@@ -8,15 +8,17 @@ import { CsvImportAdmin } from './CsvImportAdmin';
 import { TestLocationAdmin } from './TestLocationAdmin';
 import { OrdersAdmin } from './orders/OrdersAdmin';
 import { PopularAdmin } from './orders/PopularAdmin';
+import { MarketAdmin } from './market/MarketAdmin';
 import './admin.css';
 
-type Tab = 'home' | 'restaurants' | 'popular' | 'orders' | 'import' | 'test';
+type Tab = 'home' | 'restaurants' | 'popular' | 'orders' | 'market' | 'import' | 'test';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'home', label: '홈' },
   { key: 'restaurants', label: '음식점·메뉴' },
   { key: 'popular', label: '실시간 인기매장' },
   { key: 'orders', label: '주문 데이터' },
+  { key: 'market', label: '상권 분석' },
   { key: 'import', label: 'CSV 업로드' },
   { key: 'test', label: '테스트 위치' },
 ];
@@ -98,6 +100,7 @@ function AdminHome({ client, email, onSignOut }: { client: SupabaseClient; email
       {tab === 'restaurants' && <RestaurantAdmin client={client} />}
       {tab === 'popular' && <PopularAdmin client={client} />}
       {tab === 'orders' && <OrdersAdmin client={client} />}
+      {tab === 'market' && <MarketAdmin client={client} />}
       {tab === 'import' && <CsvImportAdmin client={client} />}
       {tab === 'test' && <TestLocationAdmin client={client} />}
     </AdminShell>

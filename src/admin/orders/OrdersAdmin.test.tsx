@@ -104,7 +104,7 @@ describe('주문 데이터 — 관리자', () => {
               id: 'c1', restaurant_id: 'r1', provider: 'baemin', vendor: '하이픈', external_store_id: null, ingest_mode: 'polling',
               status: 'preparing', store_consent: false, provider_permission: false, public_allowed: false, is_test: false,
               test_simulate_error: false, credential_ref: null, unit_cost_krw: 0, monthly_call_limit: null, calls_month: null,
-              calls_this_month: 0, last_attempt_at: null, last_success_at: null, last_error: null, last_error_at: null, freshness_minutes: null,
+              calls_this_month: 0, last_attempt_at: null, last_success_at: null, last_error: null, last_error_at: null, freshness_minutes: null, amount_basis: 'unknown', analytics_allowed: false,
               restaurants: { name: '시험 불백식당' },
             },
           ],

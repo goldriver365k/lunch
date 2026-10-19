@@ -32,6 +32,8 @@ const BUSINESS_LABEL = { open: '영업', suspended: '영업중단(휴업 등)', 
 const COORD_LABEL = { valid: '정상', missing: '누락', invalid: '오류' } as const;
 const VERIFY_LABEL = { unverified: '미확인', verified: '확인 완료', needs_review: '재확인 필요' } as const;
 
+const MARKET_CATEGORIES = ['한식', '중식', '일식', '양식', '면류', '분식', '패스트푸드', '기타'];
+
 const EMPTY: RestaurantEditable = {
   name: '',
   category: '한식',
@@ -48,6 +50,7 @@ const EMPTY: RestaurantEditable = {
   delivery_eta_minutes: null,
   baemin_order_url: null,
   coupangeats_order_url: null,
+  market_category: null,
   verify_status: 'unverified',
   last_verified_at: null,
   is_public: false,
@@ -71,6 +74,7 @@ function editableOf(r: AdminRestaurant): RestaurantEditable {
     delivery_eta_minutes: r.delivery_eta_minutes ?? null,
     baemin_order_url: r.baemin_order_url ?? null,
     coupangeats_order_url: r.coupangeats_order_url ?? null,
+    market_category: r.market_category ?? null,
     verify_status: r.verify_status,
     last_verified_at: r.last_verified_at,
     is_public: r.is_public,
@@ -330,6 +334,15 @@ function RestaurantForm({
           음식 종류
           <select value={v.category} onChange={(e) => set('category', e.target.value)}>
             {CATEGORIES.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          상권 분석 음식 종류 — 비우면 음식 종류로 자동 분류 (면류는 직접 지정)
+          <select value={v.market_category ?? ''} onChange={(e) => set('market_category', e.target.value || null)}>
+            <option value="">자동</option>
+            {MARKET_CATEGORIES.map((c) => (
               <option key={c}>{c}</option>
             ))}
           </select>

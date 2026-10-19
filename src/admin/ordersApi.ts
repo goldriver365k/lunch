@@ -50,6 +50,10 @@ export interface OrderConnection {
   last_error_at: string | null;
   /** 이 연결의 갱신 지연 판단 기준(분) — null이면 설정의 기본값. 수집 주기가 긴 제공처용 */
   freshness_minutes: number | null;
+  /** 주문총액의 의미 — 상권 분석 금액(배달비 제외) 계산에 쓴다 */
+  amount_basis: 'menu_sales' | 'paid_incl_delivery' | 'unknown';
+  /** 사업자 상권 분석(지역 집계)에 사용 허락 — 소비자 공개와 별개 */
+  analytics_allowed: boolean;
   restaurants?: { name: string } | null;
 }
 

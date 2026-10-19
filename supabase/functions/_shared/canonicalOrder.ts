@@ -27,6 +27,8 @@ export interface CanonicalOrder {
   total_amount: number;
   discount_amount?: number;
   refund_amount?: number;
+  /** 제공처가 알려준 배달비 — 주문총액에 배달비가 들어 있을 때 상권 분석 금액에서 뺀다 */
+  delivery_fee?: number | null;
   order_status?: OrderStatus;
   payment_status?: PaymentStatus;
   is_cancelled?: boolean;
@@ -82,6 +84,7 @@ export function sanitizeOrder(raw: Record<string, unknown>): CanonicalOrder {
     total_amount: int(raw.total_amount, '주문 총금액')!,
     discount_amount: int(raw.discount_amount, '할인금액', { optional: true }) ?? 0,
     refund_amount: int(raw.refund_amount, '환불금액', { optional: true }) ?? 0,
+    delivery_fee: int(raw.delivery_fee, '배달비', { optional: true }),
     order_status: ORDER_STATUSES.includes(orderStatus) ? orderStatus : 'unknown',
     payment_status: PAYMENT_STATUSES.includes(paymentStatus) ? paymentStatus : 'unknown',
     is_cancelled: cancelled,

@@ -18,6 +18,7 @@ const NEW_MENU: MenuEditable = {
   is_available: true,
   is_public: true,
   price_verified_at: null,
+  menu_group: null,
 };
 
 export function MenuAdmin({ client, restaurantId }: { client: SupabaseClient; restaurantId: string }) {
@@ -137,6 +138,10 @@ function MenuRow({
           메뉴 공개
         </label>
       </div>
+      <label>
+        상권 분석 공통 분류 — 다른 매장의 같은 메뉴로 확인한 경우만 (예: 제육볶음)
+        <input value={v.menu_group ?? ''} onChange={(e) => setV({ ...v, menu_group: e.target.value.trim() ? e.target.value : null })} />
+      </label>
       {menu?.price_verified_at && <p className="admin-muted">가격 확인일 {menu.price_verified_at}</p>}
       {message && <p role="alert">{message}</p>}
       <div className="admin-row">

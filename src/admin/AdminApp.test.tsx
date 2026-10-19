@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { File as NodeFile } from 'node:buffer';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import AdminApp from './AdminApp';
 import { fakeSupabase, type FakeOptions } from '../test/fakeSupabase';
@@ -141,14 +141,14 @@ describe('음식점·메뉴 관리', () => {
     id: 'r1', license_no: 'L-1', source_ref: null, name: '공공 식당', category: '한식', category_raw: '한식',
     road_address: '서울 강남구 테헤란로 1', lot_address: null, lat: 37.5046, lng: 127.0491, coord_status: 'valid',
     business_status: 'open', business_status_raw: '영업/정상', dine_in: 'unknown', delivery: 'unknown', takeout: 'unknown',
-    delivery_radius_m: null, delivery_fee_krw: null, delivery_eta_minutes: null, baemin_order_url: null, coupangeats_order_url: null,
+    delivery_radius_m: null, delivery_fee_krw: null, delivery_eta_minutes: null, baemin_order_url: null, coupangeats_order_url: null, market_category: null,
     has_signature_menu: false, source: 'public_data', source_name: '공공데이터', source_collected_at: '2026-10-19',
     verify_status: 'unverified', last_verified_at: null, is_public: true, admin_edited: false, region_id: 'seolleung_yeoksam',
     updated_at: '2026-10-19T00:00:00Z',
   };
   const menu: AdminMenu = {
     id: 'm1', restaurant_id: 'r1', name: '김치찌개', is_signature: true, price_dine_in: 9000, price_delivery: null,
-    price_takeout: null, sort_order: 1, is_available: true, is_public: true, price_verified_at: null,
+    price_takeout: null, sort_order: 1, is_available: true, is_public: true, price_verified_at: null, menu_group: null,
   };
 
   it('매장을 고쳐 저장하고, 메뉴 가격을 바꾸면 그 매장 메뉴만 갱신한다', async () => {
@@ -231,5 +231,18 @@ describe('테스트 위치', () => {
       'search_restaurants',
       expect.objectContaining({ p_lat: STATIONS.yeoksam.point.lat, p_lng: STATIONS.yeoksam.point.lng, p_radius_m: 300 }),
     );
+  });
+
+  it('같은 테스트 위치로 사업자 상권 분석을 연다 (현장에 가지 않고 시험)', async () => {
+    const user = userEvent.setup();
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign });
+    setup();
+    await user.click(await screen.findByRole('tab', { name: '테스트 위치' }));
+    await user.click(within(screen.getByRole('radiogroup', { name: '테스트 위치' })).getByLabelText(/판교역/));
+    await user.click(screen.getByRole('button', { name: '이 위치로 상권 분석 보기' }));
+    expect(sessionStorage.getItem('mwomeok.testLocation')).toBe('pangyo');
+    expect(assign).toHaveBeenCalledWith('/business/market');
+    vi.unstubAllGlobals();
   });
 });

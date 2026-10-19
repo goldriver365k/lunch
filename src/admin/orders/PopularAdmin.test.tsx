@@ -112,7 +112,7 @@ describe('관리자 — 확인된 배달 정보와 승인된 배달앱 링크', 
     id: 'r1', license_no: 'L-1', source_ref: null, name: '공공 식당', category: '한식', category_raw: '한식',
     road_address: '서울 강남구 테헤란로 1', lot_address: null, lat: 37.5046, lng: 127.0491, coord_status: 'valid',
     business_status: 'open', business_status_raw: null, dine_in: 'yes', delivery: 'yes', takeout: 'unknown',
-    delivery_radius_m: 1500, delivery_fee_krw: null, delivery_eta_minutes: null, baemin_order_url: null, coupangeats_order_url: null,
+    delivery_radius_m: 1500, delivery_fee_krw: null, delivery_eta_minutes: null, baemin_order_url: null, coupangeats_order_url: null, market_category: null,
     has_signature_menu: false, source: 'public_data', source_name: null, source_collected_at: null, verify_status: 'verified',
     last_verified_at: null, is_public: true, admin_edited: false, region_id: 'seolleung_yeoksam', updated_at: '2026-10-19T00:00:00Z',
   } satisfies AdminRestaurant;

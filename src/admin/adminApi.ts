@@ -36,6 +36,8 @@ export interface AdminRestaurant {
   /** 승인된 배달앱 주문 링크 (https만) */
   baemin_order_url: string | null;
   coupangeats_order_url: string | null;
+  /** 상권 분석용 음식 종류 (없으면 음식 종류에서 자동 분류) */
+  market_category: string | null;
   has_signature_menu: boolean;
   source: 'public_data' | 'admin';
   source_name: string | null;
@@ -65,6 +67,7 @@ export type RestaurantEditable = Pick<
   | 'delivery_eta_minutes'
   | 'baemin_order_url'
   | 'coupangeats_order_url'
+  | 'market_category'
   | 'verify_status'
   | 'last_verified_at'
   | 'is_public'
@@ -83,6 +86,8 @@ export interface AdminMenu {
   is_available: boolean;
   is_public: boolean;
   price_verified_at: string | null;
+  /** 상권 분석에서 다른 매장 메뉴와 묶을 공통 분류 (관리자가 확인한 경우만) */
+  menu_group: string | null;
 }
 
 export type MenuEditable = Omit<AdminMenu, 'id' | 'restaurant_id'>;

@@ -158,6 +158,15 @@ describe('주문 CSV', () => {
     expect(JSON.stringify(r.orders)).not.toContain('010-1111');
   });
 
+  it('배달비 열이 있으면 함께 읽는다 (상권 분석 금액에서 배달비를 빼는 데 씀)', () => {
+    const r = parseOrderCsv([
+      ['주문번호', '주문시각', '채널', '메뉴명', '수량', '주문총금액', '배달비'],
+      ['D1', '2026-10-19 12:03', '배달', '제육볶음', '1', '15000', '3,000'],
+      ['H1', '2026-10-19 12:04', '홀', '제육볶음', '1', '9000', ''],
+    ]);
+    expect(r.orders.map((o) => o.delivery_fee)).toEqual([3000, null]);
+  });
+
   it('필수 열이 없으면 알려준다', () => {
     expect(() => parseOrderCsv([['주문번호', '메뉴명']])).toThrow(OrderCsvFormatError);
   });

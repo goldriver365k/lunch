@@ -3,7 +3,7 @@ import { OrderValidationError, sanitizeOrder, type CanonicalOrder, type OrderCha
 /**
  * 주문 CSV (POS 연결이 없는 매장용). 한 행 = 주문 메뉴 1개, 같은 주문번호 행끼리 묶는다.
  * 필수: 주문번호, 주문시각, 채널(홀/배달/포장), 메뉴명, 수량, 주문총금액
- * 선택: 연결번호, 결제시각, 단가, 판매금액, 할인금액, 환불금액, 결제상태, 취소여부
+ * 선택: 연결번호, 결제시각, 단가, 판매금액, 할인금액, 환불금액, 배달비, 결제상태, 취소여부
  * 그 밖의 열(고객명·전화번호·주소 등)은 읽지 않는다.
  * 시각에 시간대가 없으면 한국시간으로 본다.
  */
@@ -21,6 +21,7 @@ const ALIASES = {
   total: ['주문총금액', '총금액', '주문금액'],
   discount: ['할인금액', '할인'],
   refund: ['환불금액', '환불'],
+  deliveryFee: ['배달비', '배달팁', '배달료'],
   payment: ['결제상태'],
   cancelled: ['취소여부', '취소'],
 } as const;
@@ -99,6 +100,7 @@ export function parseOrderCsv(rows: string[][]): OrderCsvResult {
           total_amount: get(r0, 'total'),
           discount_amount: get(r0, 'discount') || 0,
           refund_amount: get(r0, 'refund') || 0,
+          delivery_fee: get(r0, 'deliveryFee') || null,
           payment_status: PAYMENT[get(r0, 'payment')] ?? 'unknown',
           order_status: cancelled ? 'cancelled' : 'completed',
           is_cancelled: cancelled,

@@ -89,6 +89,18 @@ export function TestLocationAdmin({ client }: { client: SupabaseClient }) {
           >
             {station ? '소비자 화면에서 테스트' : '실제 GPS로 소비자 화면 열기'}
           </button>
+          <button
+            type="button"
+            className="admin-btn"
+            disabled={!station}
+            onClick={() => {
+              // 같은 테스트 위치로 사업자 상권 분석을 연다 (그 역 주변 상권부터)
+              requestTestLocation(station ? station.id : null);
+              window.location.assign('/business/market');
+            }}
+          >
+            이 위치로 상권 분석 보기
+          </button>
         </div>
       </div>
 

@@ -162,6 +162,18 @@ export function ConnectionsAdmin({ client, test }: { client: SupabaseClient; tes
                     </select>
                   </label>
                 )}
+                <label>
+                  금액 기준
+                  <select
+                    value={c.amount_basis}
+                    aria-label="금액 기준"
+                    onChange={(e) => patch(c, { amount_basis: e.target.value as OrderConnection['amount_basis'] }, '금액 기준을 바꿨어요. 해당 주문을 다시 집계해요.')}
+                  >
+                    <option value="unknown">확인 전 (배달 주문 금액 분석 제외)</option>
+                    <option value="menu_sales">주문총액 = 메뉴 판매금액 (배달비 제외)</option>
+                    <option value="paid_incl_delivery">주문총액에 배달비 포함 (배달비 자료로 뺌)</option>
+                  </select>
+                </label>
                 {c.ingest_mode !== 'webhook' && (
                   <label>
                     갱신 지연 기준
@@ -198,6 +210,7 @@ export function ConnectionsAdmin({ client, test }: { client: SupabaseClient; tes
                       ['store_consent', '매장 동의'],
                       ['provider_permission', '제공업체 사용 허락'],
                       ['public_allowed', '소비자 공개 허용(제3자 재사용 범위 확인)'],
+                      ['analytics_allowed', '사업자 상권 분석에 지역 집계로 사용 허락'],
                     ] as const
                   ).map(([k, l]) => (
                     <label key={k} className="admin-switch">
