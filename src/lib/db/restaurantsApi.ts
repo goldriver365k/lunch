@@ -45,6 +45,7 @@ export interface DbSearchRow {
   baemin_order_url?: string | null;
   coupangeats_order_url?: string | null;
   rank_group?: number;
+  verify_status?: 'unverified' | 'verified' | 'needs_review';
 }
 
 function mapActivity(a: DbSearchRow['activity']): OrderActivity | null {
@@ -97,6 +98,7 @@ export function mapDbRow(row: DbSearchRow): RestaurantResult {
     deliveryRadiusM: row.delivery_radius_m ?? undefined,
     dataSource: { kind: 'db', realtime: false, updatedAt: row.updated_at },
     lastVerifiedAt: row.last_verified_at,
+    needsReview: row.verify_status === 'needs_review',
     activity: mapActivity(row.activity),
     // 확인된 값만 (없으면 표시하지 않는다 — 임의로 만들지 않음)
     deliveryFee: row.delivery_fee_krw ?? undefined,
@@ -115,13 +117,13 @@ export interface DbSearchParams {
   keyword: string;
   /** 관리자 테스트 모드: 테스트 주문 집계를 보여준다 (서버에서 관리자일 때만 적용) */
   includeTest?: boolean;
-  /** 서버 정렬: 지금 주문 많은 순(popular) / 거리순(distance) */
+  /** 서버 정렬: 지금 주문 활발한 순(popular) / 거리순(distance) */
   sort?: 'popular' | 'distance';
 }
 
-/** 서버(PostGIS)에서 반경 검색 — 전체 음식점을 내려받지 않는다 */
-export async function searchRestaurantsDb(client: SupabaseClient, p: DbSearchParams): Promise<RestaurantResult[]> {
-  const { data, error } = await client.rpc('search_restaurants', {
+/** 서버(PostGIS)에서 반경 검색 — 전체 음식점을 내려받지 않는다. signal로 오래된 요청을 취소한다 */
+export async function searchRestaurantsDb(client: SupabaseClient, p: DbSearchParams, signal?: AbortSignal): Promise<RestaurantResult[]> {
+  const query = client.rpc('search_restaurants', {
     p_lat: p.origin.lat,
     p_lng: p.origin.lng,
     p_mode: p.mode,
@@ -131,16 +133,31 @@ export async function searchRestaurantsDb(client: SupabaseClient, p: DbSearchPar
     ...(p.includeTest ? { p_include_test: true } : {}),
     p_sort: p.sort ?? 'popular',
   });
+  const { data, error } = await (signal && typeof query.abortSignal === 'function' ? query.abortSignal(signal) : query);
   if (error) throw error;
   return (data as DbSearchRow[]).map(mapDbRow);
 }
 
-/** 화면 새로고침 간격(초) — 관리자 설정, 실패하면 60초 */
-export async function fetchRefreshIntervalSeconds(client: SupabaseClient): Promise<number> {
-  const { data, error } = await client.rpc('public_app_settings');
-  const n = Number((data as { refresh_interval_seconds?: number } | null)?.refresh_interval_seconds);
-  return !error && Number.isFinite(n) && n >= 15 ? n : 60;
+export interface PublicSettings {
+  /** 화면 새로고침 간격(초) — 관리자 설정, 실패하면 60초 */
+  refreshSec: number;
+  /** 점검·공지 (없으면 null) */
+  notice: string | null;
+  /** 관리자가 실시간 주문정보 표시를 멈췄으면 false */
+  liveOrdersPublic: boolean;
 }
+
+export async function fetchPublicSettings(client: SupabaseClient): Promise<PublicSettings> {
+  const { data, error } = await client.rpc('public_app_settings');
+  const d = (error ? null : data) as { refresh_interval_seconds?: number; notice?: string | null; live_orders_public?: boolean } | null;
+  const n = Number(d?.refresh_interval_seconds);
+  return {
+    refreshSec: Number.isFinite(n) && n >= 15 ? n : 60,
+    notice: d?.notice?.trim() || null,
+    liveOrdersPublic: d?.live_orders_public !== false,
+  };
+}
+
 
 /** 서버에서 관리자 여부 확인 (admin_users + 로그인 세션) */
 export async function checkIsAdmin(client: SupabaseClient): Promise<boolean> {

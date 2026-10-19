@@ -17,7 +17,7 @@ function modeMeta(r: RestaurantResult, mode: Mode): string {
       r.deliveryMinutes !== undefined ? `배달 ${r.deliveryMinutes}분` : null,
       r.deliveryFee !== undefined ? `배달비 ${formatPrice(r.deliveryFee)}` : null,
     ].filter(Boolean);
-    return parts.length > 0 ? parts.join(' · ') : '배달 가능 지역 확인됨';
+    return parts.length > 0 ? parts.join(' · ') : '매장 배달 거리 안';
   }
   if (mode === 'takeout') {
     if (status === 'unknown') return '포장 운영 미확인';
@@ -58,7 +58,7 @@ export function RestaurantCard({ restaurant: r, rank, mode, onOpen }: Props) {
             직선 {formatDistance(r.distanceM)}
             {r.rating !== undefined && ` · ★ ${r.rating.toFixed(1)}`} · {modeMeta(r, mode)}
           </span>
-          {mode === 'delivery' && r.dataSource.kind === 'db' && <span className="ok-tag">배달 가능</span>}
+          {mode === 'delivery' && r.dataSource.kind === 'db' && <span className="ok-tag">배달 가능 거리 안</span>}
           {activity && r.activity ? (
             <span className={r.activity.status === 'active' ? 'live' : 'live muted'}>
               {r.activity.status === 'active' ? '📈 ' : ''}

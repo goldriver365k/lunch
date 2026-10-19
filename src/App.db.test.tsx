@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   hasSession: false,
   rpcError: false,
   refreshSec: 60,
+  notice: null as string | null,
   rpc: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
 }));
 
@@ -24,7 +25,7 @@ vi.mock('./lib/supabase', async () => {
   const { client } = fakeSupabase({
     rpc: (fn, args) => {
       if (fn === 'is_admin') return { data: h.isAdmin, error: null };
-      if (fn === 'public_app_settings') return { data: { refresh_interval_seconds: h.refreshSec }, error: null };
+      if (fn === 'public_app_settings') return { data: { refresh_interval_seconds: h.refreshSec, notice: h.notice, live_orders_public: true }, error: null };
       if (fn !== 'search_restaurants') return { data: null, error: { message: 'unknown' } };
       if (h.rpcError) return { data: null, error: { message: 'boom' } };
       const origin = { lat: args.p_lat as number, lng: args.p_lng as number };
@@ -110,6 +111,7 @@ beforeEach(() => {
   h.isAdmin = false;
   h.hasSession = false;
   h.rpcError = false;
+  h.notice = null;
   h.rpc.mockClear();
 });
 
@@ -298,7 +300,7 @@ describe('관리자 테스트 위치 — 소비자 화면', () => {
   });
 });
 
-describe('6단계 — 지금 주문 많은 순 (서버 순위)', () => {
+describe('6단계 — 지금 주문 활발한 순 (서버 순위)', () => {
   const act = (over: Partial<NonNullable<DbSearchRow['activity']>> = {}): NonNullable<DbSearchRow['activity']> => ({
     scope: 'public',
     status: 'active',
@@ -313,14 +315,14 @@ describe('6단계 — 지금 주문 많은 순 (서버 순위)', () => {
     ...over,
   });
 
-  it('기본은 지금 주문 많은 순: 주문 데이터 매장이 먼저, 나머지는 따로 거리순 · 거리순으로 바꿀 수 있음', async () => {
+  it('기본은 지금 주문 활발한 순: 주문 데이터 매장이 먼저, 나머지는 따로 거리순 · 거리순으로 바꿀 수 있음', async () => {
     h.rows[1] = { ...h.rows[1], activity: act({ rank_primary: 6, windows: { '10m': 6, '30m': 12 } }) }; // 150m
     h.rows[2] = { ...h.rows[2], activity: act({ rank_primary: 9, windows: { '10m': 9 } }) }; // 250m
     h.rows[3] = { ...h.rows[3], activity: act({ status: 'delayed', rank_primary: 0, rank_secondary: 0, windows: {} }) }; // 350m
     gpsAt(STATIONS.seolleung.point);
     const user = userEvent.setup();
     render(<App />);
-    expect(screen.getByRole('radio', { name: '지금 주문 많은 순' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: '지금 주문 활발한 순' })).toHaveAttribute('aria-checked', 'true');
     await user.click(screen.getByRole('radio', { name: '300m' }));
     await waitFor(() => expect(names()).toEqual(['이백오십 중식당', '백오십 국수', '오십미터 백반']));
     expect(h.rpc).toHaveBeenLastCalledWith('search_restaurants', expect.objectContaining({ p_sort: 'popular', p_radius_m: 300 }));
@@ -469,5 +471,119 @@ describe('6단계 — 지금 주문 많은 순 (서버 순위)', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('테스트 모드'));
     await waitFor(() => expect(h.rpc).toHaveBeenLastCalledWith('search_restaurants', expect.objectContaining({ p_include_test: true })));
     await waitFor(() => expect(screen.getByRole('button', { name: /오십미터 백반/ })).toHaveTextContent('테스트 데이터'));
+  });
+});
+
+describe('8단계 — 시범 서비스 점검', () => {
+  it('처음 방문하면 위치 용도를 먼저 알리고, ‘현재 위치로 찾기’를 눌러야 GPS 권한을 요청한다', async () => {
+    localStorage.removeItem('mwomeok.locationConsent');
+    gpsAt(STATIONS.seolleung.point);
+    const user = userEvent.setup();
+    render(<App />);
+    const ask = screen.getByRole('region', { name: '위치 사용 안내' });
+    expect(ask).toHaveTextContent('서버에 위치 기록을 남기지 않아요');
+    expect(navigator.geolocation.getCurrentPosition).not.toHaveBeenCalled();
+    expect(screen.queryByText(/현재 위치 · GPS/)).not.toBeInTheDocument(); // 확인 전에 현재 위치처럼 보이지 않음
+    await user.click(within(ask).getByRole('button', { name: '자세히' }));
+    expect(screen.getByRole('dialog', { name: '위치·개인정보 안내' })).toHaveTextContent('이동 기록으로 저장하지 않아요');
+    await user.click(within(screen.getByRole('dialog', { name: '위치·개인정보 안내' })).getByRole('button', { name: '닫기' }));
+    await user.click(within(ask).getByRole('button', { name: '현재 위치로 찾기' }));
+    await waitFor(() => expect(names()).toEqual(['오십미터 백반']));
+    expect(localStorage.getItem('mwomeok.locationConsent')).toBe('1');
+  });
+
+  it('위치 없이 지역을 직접 골라도 검색할 수 있다 (역삼 포함, 출발지로는 쓰지 않음)', async () => {
+    localStorage.removeItem('mwomeok.locationConsent');
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(within(screen.getByRole('group', { name: '또는 지역 직접 선택' })).getByRole('button', { name: /역삼/ }));
+    await waitFor(() => expect(names()).toEqual(['역삼 백미터']));
+    expect(screen.getByText('역삼 (시범 위치)')).toBeInTheDocument();
+  });
+
+  it('통신이 끊겨 위치를 못 찾으면 그 이유를 알린다', async () => {
+    mockGeolocation((_, fail) => fail({ code: 2 }));
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    render(<App />);
+    expect(await screen.findByText(/인터넷 연결이 없어 위치를 확인하지 못했어요/)).toBeInTheDocument();
+    expect(screen.getByText(/인터넷 연결이 없어요/)).toBeInTheDocument();
+  });
+
+  it('관리자 공지를 맨 위에 보여준다', async () => {
+    h.notice = '13시 점검으로 주문정보가 늦을 수 있어요';
+    gpsAt(STATIONS.seolleung.point);
+    render(<App />);
+    expect(await screen.findByText(/13시 점검으로 주문정보가 늦을 수 있어요/)).toBeInTheDocument();
+  });
+
+  it('긴 목록은 20곳씩 보여준다 (더 보기)', async () => {
+    h.rows = Array.from({ length: 45 }, (_, i) => row(`가게${String(i).padStart(2, '0')}`, 10 + i, i * 8));
+    gpsAt(STATIONS.seolleung.point);
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(names()).toHaveLength(20));
+    expect(screen.getByText('45곳')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '더 보기 (25곳 더)' }));
+    expect(names()).toHaveLength(40);
+    await user.click(screen.getByRole('button', { name: '더 보기 (5곳 더)' }));
+    expect(names()).toHaveLength(45);
+    expect(screen.queryByRole('button', { name: /더 보기/ })).not.toBeInTheDocument();
+  });
+
+  it('결과가 없으면 이유와 해결 버튼(범위 넓히기·종류 전체)을 준다', async () => {
+    h.rows = [row('멀리', 250, 0)];
+    gpsAt(STATIONS.seolleung.point);
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByText(/100m 안에 공개된 가게가 없어요/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '200m로 넓히기' }));
+    await user.click(await screen.findByRole('button', { name: '300m로 넓히기' }));
+    await waitFor(() => expect(names()).toEqual(['멀리']));
+    await user.click(screen.getByRole('radio', { name: '중식' }));
+    await user.click(await screen.findByRole('button', { name: '음식 종류 전체' }));
+    await waitFor(() => expect(names()).toEqual(['멀리']));
+  });
+
+  it('관리자가 ‘정보 확인 필요’로 둔 매장은 상세화면에 표시한다', async () => {
+    h.rows = [row('확인중 식당', 40, 0, STATIONS.seolleung.point, { verify_status: 'needs_review' })];
+    gpsAt(STATIONS.seolleung.point);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /확인중 식당/ }));
+    expect(screen.getByRole('dialog', { name: /상세정보/ })).toHaveTextContent('정보 확인 필요');
+  });
+
+  it('배달은 주소별 배달 가능을 확정하지 않고 ‘배달 가능 거리 안’으로 표시한다', async () => {
+    h.rows = [row('배달집', 400, 0, STATIONS.seolleung.point, { delivery: 'yes', delivery_radius_m: 1500 })];
+    gpsAt(STATIONS.seolleung.point);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('tab', { name: /배달/ }));
+    const card = await screen.findByRole('button', { name: /배달집/ });
+    expect(card).toHaveTextContent('배달 가능 거리 안');
+    expect(card).not.toHaveTextContent(/배달 가능(?! 거리)/);
+    await user.click(card);
+    expect(screen.getByRole('dialog', { name: /상세정보/ })).toHaveTextContent('실제 배달되는지는 주문할 때 배달앱에서 확인');
+  });
+
+  it('홈 화면에 추가: 아이폰은 공유 메뉴 안내 (자동 설치 창 없음)', async () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari/604.1');
+    gpsAt(STATIONS.seolleung.point);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: '홈 화면에 추가' }));
+    expect(screen.getByRole('dialog', { name: '홈 화면에 추가' })).toHaveTextContent('공유 버튼');
+  });
+
+  it('홈 화면에 추가: 안드로이드 크롬은 브라우저 설치 창을 띄운다', async () => {
+    gpsAt(STATIONS.seolleung.point);
+    const user = userEvent.setup();
+    render(<App />);
+    const prompt = vi.fn(async () => {});
+    const ev = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), { prompt, userChoice: Promise.resolve({ outcome: 'accepted' }) });
+    window.dispatchEvent(ev);
+    await user.click(await screen.findByRole('button', { name: '홈 화면에 추가' }));
+    expect(prompt).toHaveBeenCalled();
+    expect(ev.defaultPrevented).toBe(true);
   });
 });

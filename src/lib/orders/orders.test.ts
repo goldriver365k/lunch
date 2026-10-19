@@ -65,6 +65,17 @@ describe('웹훅 수신', () => {
     expect(JSON.stringify(sent)).not.toContain('010-1234');
   });
 
+  it('본문의 as_of(제공처 주문 기준시각)를 함께 기록한다', async () => {
+    const d = { ...deps(), reportAsOf: vi.fn(async () => {}) };
+    const withAsOf = JSON.stringify({ ...JSON.parse(body), as_of: '2026-10-19T12:00:00+09:00' });
+    const r = await handleOrderWebhook(
+      { connectionId: 'c1', format: 'canonical', signature: `sha256=${await hmacHex('shared-secret', withAsOf)}`, rawBody: withAsOf },
+      d,
+    );
+    expect(r.status).toBe(200);
+    expect(d.reportAsOf).toHaveBeenCalledWith('c1', '2026-10-19T03:00:00.000Z');
+  });
+
   it('서명이 틀리면 401, 수집하지 않는다', async () => {
     const d = deps();
     const r = await handleOrderWebhook({ connectionId: 'c1', format: 'canonical', signature: 'sha256=00', rawBody: body }, d);

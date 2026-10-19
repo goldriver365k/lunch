@@ -1,0 +1,48 @@
+# 정기 DB 백업 (무료: GitHub Actions). 저장소 Settings → Secrets에 아래 두 값을 넣어야 동작한다.
+#   SUPABASE_DB_URL   — Supabase DB 연결 문자열 (비밀값)
+#   BACKUP_PASSPHRASE — 백업 암호화 비밀번호 (복원 때 필요, 따로 안전하게 보관)
+# 결과: 암호화된 백업 파일을 Actions 아티팩트로 30일 보관
+name: db-backup
+on:
+  schedule:
+    - cron: '0 18 * * *' # 매일 한국시간 새벽 3시
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 비밀값 확인
+        id: secrets
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "SUPABASE_DB_URL·BACKUP_PASSPHRASE 비밀값이 없어 백업을 건너뛰어요." >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: PostgreSQL 17 클라이언트 설치 (Supabase 서버 버전 이상)
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -q && sudo apt-get install -y -q postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: 백업
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: scripts/db-backup.sh backups
+      - uses: actions/upload-artifact@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backups/
+          retention-days: 30

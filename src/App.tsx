@@ -18,6 +18,14 @@ import { DeliveryAddressPanel, type DeliveryTarget } from './components/Delivery
 import { RestaurantDetail } from './components/RestaurantDetail';
 import { RouteSheets } from './components/RouteSheets';
 import { BottomSheet } from './components/BottomSheet';
+import { AppBanners } from './components/AppBanners';
+import { InstallGuide } from './components/InstallGuide';
+import { PrivacySheet } from './components/PrivacySheet';
+import { logUsage } from './lib/usage';
+import { supabase } from './lib/supabase';
+
+/** 목록은 이만큼씩 보여준다 (긴 목록을 한 번에 그리지 않음) */
+const PAGE_SIZE = 20;
 
 export default function App() {
   const { state: locationState, locate, choosePilot } = useCurrentLocation();
@@ -31,6 +39,8 @@ export default function App() {
   const [routeTestOpen, setRouteTestOpen] = useState(false);
   const [deliveryTarget, setDeliveryTarget] = useState<DeliveryTarget>('current');
   const [deliveryDetail, setDeliveryDetail] = useState('');
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // 상세화면은 history 항목으로 열어서 브라우저·기기 뒤로 가기로 닫히게 한다.
   // 목록은 그대로 둔 채 위에 덮으므로 검색조건과 스크롤 위치가 유지된다.
@@ -43,6 +53,7 @@ export default function App() {
   const openDetail = (id: string) => {
     window.history.pushState({ mwomeokStore: id }, '');
     setSelectedId(id);
+    logUsage(supabase, 'detail_view', { mode, point: usagePoint, test: !!testLocation.station });
   };
   const closeDetail = useCallback(() => {
     if ((window.history.state as { mwomeokStore?: string } | null)?.mwomeokStore) window.history.back();
@@ -63,6 +74,32 @@ export default function App() {
   const data = useRestaurantData({ origin, mode, radius, category, keyword, sort, includeTest: !!testLocation.station });
   const results = data.results;
 
+  // ── 이용 통계 (좌표는 보내지 않고 가까운 시범 지역 이름만) ──
+  const usagePoint = origin;
+  const isTest = !!testLocation.station;
+  useEffect(() => {
+    logUsage(supabase, 'visit');
+  }, []);
+  const originKey = origin ? `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}` : '';
+  const searchKey = origin ? JSON.stringify([originKey, mode, radius, category, keyword.trim(), sort]) : '';
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE); // 검색 조건이 바뀌면 처음부터 (자동 새로고침에서는 그대로)
+    if (!searchKey) return;
+    // 입력 중에는 세지 않도록 잠시 기다렸다가 한 번만 기록한다
+    const t = setTimeout(() => logUsage(supabase, 'search', { mode, point: origin, test: isTest }), 1000);
+    return () => clearTimeout(t);
+    // searchKey가 검색 조건을 모두 담고 있다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchKey]);
+  useEffect(() => {
+    if (locationState.status === 'error') logUsage(supabase, locationState.code === 1 ? 'gps_denied' : 'gps_error', { test: isTest });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationState.status]);
+  useEffect(() => {
+    if (data.error) logUsage(supabase, 'error', { mode, detail: 'search_failed', test: isTest });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.error]);
+
   // 상세화면은 고유 ID로 해당 매장 한 곳만 찾아 보여준다
   // 자동 새로고침으로 매장이 목록에서 잠시 빠져도 열어 둔 상세화면은 닫지 않는다
   const lastSelected = useRef<ReturnType<typeof data.find>>(null);
@@ -81,6 +118,10 @@ export default function App() {
     [locationState],
   );
   const route = useRouteFinder(gpsOrigin);
+  const findRoute: typeof route.findRoute = (dest, how) => {
+    logUsage(supabase, 'find_route', { mode, point: usagePoint, test: isTest });
+    return route.findRoute(dest, how);
+  };
 
   const originLabel = delivery
     ? '배달 주소'
@@ -96,6 +137,8 @@ export default function App() {
         <h1 className="logo">{APP_NAME}</h1>
         <p className="slogan">{SLOGAN}</p>
       </header>
+
+      <AppBanners notice={data.notice} />
 
       {testLocation.station && (
         <div className="test-mode-bar" role="status">
@@ -133,6 +176,7 @@ export default function App() {
           areaName={data.source === 'mock' ? data.mockAreaName : ''}
           onRetry={locate}
           onPickPilot={(id) => choosePilot(pilotArea(id))}
+          onShowPrivacy={() => setPrivacyOpen(true)}
         />
       )}
 
@@ -176,14 +220,39 @@ export default function App() {
           ) : data.loading && results.length === 0 ? (
             <p className="empty">주변 가게를 찾는 중…</p>
           ) : results.length === 0 ? (
-            <p className="empty">
-              조건에 맞는 가게가 없어요.{usesRadius(mode) && radius < 300 ? ' 검색 범위를 넓혀보세요.' : ''}
-            </p>
+            <div className="empty" role="status">
+              <p>
+                {keyword.trim() || category
+                  ? '검색어·음식 종류에 맞는 가게가 없어요.'
+                  : usesRadius(mode)
+                    ? `${radius}m 안에 공개된 가게가 없어요.`
+                    : '이 배달 주소로 배달 가능한 것으로 확인된 가게가 없어요.'}
+                {usesRadius(mode) && radius < 300 ? ' 검색 범위를 넓혀보세요.' : ''}
+              </p>
+              <p className="empty-actions">
+                {usesRadius(mode) && radius < 300 && (
+                  <button type="button" className="chip" onClick={() => setRadius(radius === 100 ? 200 : 300)}>
+                    {radius === 100 ? 200 : 300}m로 넓히기
+                  </button>
+                )}
+                {category && (
+                  <button type="button" className="chip" onClick={() => setCategory(null)}>
+                    음식 종류 전체
+                  </button>
+                )}
+                {keyword.trim() && (
+                  <button type="button" className="chip" onClick={() => setKeyword('')}>
+                    검색어 지우기
+                  </button>
+                )}
+              </p>
+            </div>
           ) : (
+            <>
             <ol className="list">
-              {results.map((r, i) => (
+              {results.slice(0, visibleCount).map((r, i) => (
                 <Fragment key={r.id}>
-                  {/* 지금 주문 많은 순: 주문 데이터로 순위가 매겨진 매장 다음에 데이터 없는 매장을 거리순으로 */}
+                  {/* 지금 주문 활발한 순: 주문 데이터로 순위가 매겨진 매장 다음에 데이터 없는 매장을 거리순으로 */}
                   {sort === 'popular' && r.rankGroup === 1 && results[i - 1]?.rankGroup === 0 && (
                     <li className="list-divider" aria-label="주문정보가 없거나 갱신이 늦은 매장 · 거리순">
                       주문정보가 없거나 갱신이 늦은 매장 · 거리순
@@ -193,6 +262,12 @@ export default function App() {
                 </Fragment>
               ))}
             </ol>
+            {results.length > visibleCount && (
+              <button type="button" className="more-button" onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}>
+                더 보기 ({results.length - visibleCount}곳 더)
+              </button>
+            )}
+            </>
           )}
         </>
       )}
@@ -204,7 +279,16 @@ export default function App() {
             길찾기 연결 시험 · 지도 설정
           </button>
         </p>
+        <p className="footer-links">
+          <button type="button" className="link-button inline" onClick={() => setPrivacyOpen(true)}>
+            위치·개인정보 안내
+          </button>
+          {' · '}
+          <InstallGuide onInstalled={() => logUsage(supabase, 'install')} />
+        </p>
       </footer>
+
+      {privacyOpen && <PrivacySheet onClose={() => setPrivacyOpen(false)} />}
 
       {selected && (
         <RestaurantDetail
@@ -214,8 +298,8 @@ export default function App() {
           originLabel={originLabel}
           provider={route.provider}
           onBack={closeDetail}
-          onFindRoute={(dest) => route.findRoute(dest)}
-          onKakaoApp={(dest) => route.findRoute(dest, 'kakao-app')}
+          onFindRoute={(dest) => findRoute(dest)}
+          onKakaoApp={(dest) => findRoute(dest, 'kakao-app')}
           onChangeMap={route.changeProvider}
         />
       )}

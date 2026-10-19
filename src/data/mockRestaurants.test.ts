@@ -11,7 +11,7 @@ describe('mock 데이터', () => {
   });
 
   it('시범 지역 근처 좌표는 그 지역 데이터를 쓴다', () => {
-    const near = destinationPoint(PILOT_AREAS[1].center, 200, 45);
+    const near = destinationPoint(PILOT_AREAS.find((a) => a.id === 'pangyo')!.center, 200, 45);
     const ds = mockDatasetFor(near);
     expect(ds.areaName).toBe('판교');
     expect(ds.restaurants).toBe(pilotRestaurants('pangyo'));

@@ -100,14 +100,14 @@ describe('App — GPS', () => {
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 
-  it('GPS 오류가 나면 선릉·판교·여의도 시범 위치를 고를 수 있다', async () => {
+  it('GPS 오류가 나면 선릉·역삼·판교·여의도 시범 위치를 고를 수 있다', async () => {
     mockGeolocation((_, fail) => fail({ code: 1 }));
     const user = userEvent.setup();
     render(<App />);
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('위치');
     const picker = within(alert).getByRole('group', { name: '시범 위치 선택' });
-    expect(within(picker).getAllByRole('button').map((b) => b.textContent)).toEqual(['📍 선릉', '📍 판교', '📍 여의도']);
+    expect(within(picker).getAllByRole('button').map((b) => b.textContent)).toEqual(['📍 선릉', '📍 역삼', '📍 판교', '📍 여의도']);
     await user.click(within(picker).getByRole('button', { name: /판교/ }));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByText('판교 (시범 위치)')).toBeInTheDocument();
@@ -150,12 +150,12 @@ describe('App — 검색·정렬', () => {
     expect(at200).toBeLessThan(cardNames().length);
   });
 
-  it('기본 정렬은 지금 주문 많은 순, 거리순으로 바꿀 수 있다', async () => {
+  it('기본 정렬은 지금 주문 활발한 순, 거리순으로 바꿀 수 있다', async () => {
     gpsAtSeolleung();
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole('radio', { name: '300m' }));
-    expect(screen.getByRole('radio', { name: '지금 주문 많은 순' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: '지금 주문 활발한 순' })).toHaveAttribute('aria-checked', 'true');
     const orders = cardNumbers(/주문 (\d+)건/);
     expect(orders).toEqual([...orders].sort((a, b) => b - a));
     expect(screen.getAllByText(/\(가상\)/).length).toBe(orders.length);

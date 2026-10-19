@@ -23,7 +23,7 @@ export interface GeoPoint {
   lng: number;
 }
 
-export type PilotAreaId = 'seolleung' | 'pangyo' | 'yeouido';
+export type PilotAreaId = 'seolleung' | 'yeoksam' | 'pangyo' | 'yeouido';
 
 export interface PilotArea {
   id: PilotAreaId;
@@ -92,6 +92,8 @@ export interface Restaurant {
   dataSource: DataSourceInfo;
   /** 최종 확인일 (실제 DB) */
   lastVerifiedAt?: string | null;
+  /** 관리자가 '정보 확인 필요'로 둔 매장 (영업 여부 등 다시 확인 중) */
+  needsReview?: boolean;
   /** 현재 탭 채널의 주문 활발도 — 없으면 '주문정보 없음' (0건 아님) */
   activity?: OrderActivity | null;
   /** 배달 예상 시간(분) — 배달 지원 시 */

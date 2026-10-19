@@ -3,6 +3,7 @@
 // 비밀값: supabase secrets set ORDER_WEBHOOK_<연동의 credential_ref>=<제공업체와 공유한 서명 키>
 // 요청: POST /functions/v1/order-webhook?connection=<연동 ID>&format=canonical
 //       헤더 X-Signature: sha256=<본문 HMAC-SHA256 hex>
+//       본문 { orders: [...], as_of?: 제공처의 주문 기준시각(ISO) } — as_of가 오래되면 화면에 '데이터 갱신 지연'
 // ⚠️ 실제 제공업체 계약·명세가 없어 실제 연결은 검증하지 않았다. 핵심 처리는 _shared/orderWebhook.ts에서 시험한다.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { handleOrderWebhook, type WebhookConnection } from '../_shared/orderWebhook.ts';
@@ -38,6 +39,9 @@ Deno.serve(async (req) => {
       },
       recordError: async (connectionId, message) => {
         await db.rpc('record_connection_error', { p_connection_id: connectionId, p_message: message });
+      },
+      reportAsOf: async (connectionId, asOf) => {
+        await db.rpc('report_connection_as_of', { p_connection_id: connectionId, p_as_of: asOf });
       },
     },
   );

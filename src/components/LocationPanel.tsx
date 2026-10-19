@@ -12,10 +12,36 @@ interface Props {
   areaName: string | null;
   onRetry: () => void;
   onPickPilot: (id: PilotAreaId) => void;
+  /** 위치·개인정보 안내 열기 */
+  onShowPrivacy?: () => void;
 }
 
-export function LocationPanel({ state, areaName, onRetry, onPickPilot }: Props) {
+export function LocationPanel({ state, areaName, onRetry, onPickPilot, onShowPrivacy }: Props) {
   const [changing, setChanging] = useState(false);
+
+  if (state.status === 'ask') {
+    // 권한을 요청하기 전에 용도를 먼저 알린다. 위치 없이도 지역을 골라 바로 볼 수 있다
+    return (
+      <section className="location-panel ask" aria-label="위치 사용 안내">
+        <p className="location-line">📍 내 주변 점심을 찾으려면 현재 위치가 필요해요</p>
+        <p className="location-help">
+          위치는 이 휴대폰에서 거리 계산에만 쓰고, 서버에 위치 기록을 남기지 않아요.
+          {onShowPrivacy && (
+            <>
+              {' '}
+              <button type="button" className="link-button inline" onClick={onShowPrivacy}>
+                자세히
+              </button>
+            </>
+          )}
+        </p>
+        <button type="button" className="primary-button" onClick={onRetry}>
+          현재 위치로 찾기
+        </button>
+        <PilotPicker label="또는 지역 직접 선택" onPick={onPickPilot} />
+      </section>
+    );
+  }
 
   if (state.status === 'locating') {
     return (
@@ -29,7 +55,7 @@ export function LocationPanel({ state, areaName, onRetry, onPickPilot }: Props) 
     return (
       <section className="location-panel error" role="alert">
         <p className="location-line">⚠️ {state.reason}</p>
-        <p className="location-help">시범 위치를 골라 둘러볼 수 있어요.</p>
+        <p className="location-help">지역을 직접 골라 둘러볼 수 있어요.</p>
         <PilotPicker label="시범 위치 선택" onPick={onPickPilot} />
         <button type="button" className="link-button" onClick={onRetry}>
           GPS 다시 시도

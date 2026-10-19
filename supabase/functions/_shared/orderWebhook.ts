@@ -21,6 +21,8 @@ export interface WebhookDeps {
   getSecret: (credentialRef: string) => string | undefined;
   ingest: (connectionId: string, orders: CanonicalOrder[]) => Promise<unknown>;
   recordError: (connectionId: string, message: string) => Promise<void>;
+  /** 제공처가 알려준 '여기까지의 주문이 반영됨' 시각 (본문 as_of) — 최신 여부 판단에 쓴다 */
+  reportAsOf?: (connectionId: string, asOf: string) => Promise<void>;
 }
 
 export interface WebhookResult {
@@ -71,8 +73,12 @@ export async function handleOrderWebhook(
   if (!safeEqual(expected, given)) return { status: 401, body: { error: 'invalid signature' } };
 
   let orders: CanonicalOrder[];
+  let asOf: string | null = null;
   try {
-    orders = normalizeProviderPayload(req.format ?? 'canonical', JSON.parse(req.rawBody));
+    const payload = JSON.parse(req.rawBody);
+    orders = normalizeProviderPayload(req.format ?? 'canonical', payload);
+    const t = Date.parse(String((payload as { as_of?: unknown }).as_of ?? ''));
+    asOf = Number.isFinite(t) ? new Date(t).toISOString() : null;
   } catch (e) {
     const status = e instanceof NotSupportedFormatError ? 501 : 422;
     await deps.recordError(conn.id, `웹훅 형식 오류: ${(e as Error).message}`);
@@ -80,6 +86,7 @@ export async function handleOrderWebhook(
   }
   try {
     const result = await deps.ingest(conn.id, orders);
+    if (asOf && deps.reportAsOf) await deps.reportAsOf(conn.id, asOf);
     return { status: 200, body: { ok: true, result: result as Record<string, unknown> } };
   } catch (e) {
     await deps.recordError(conn.id, `수집 실패: ${(e as Error).message}`);

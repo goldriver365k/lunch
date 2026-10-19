@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Category, GeoPoint, Mode, Radius, RestaurantResult, SortKey } from '../types';
 import { MOCK_UPDATED_AT, mockDatasetFor } from '../data/mockRestaurants';
-import { fetchRefreshIntervalSeconds, searchRestaurantsDb } from '../lib/db/restaurantsApi';
+import { fetchPublicSettings, searchRestaurantsDb } from '../lib/db/restaurantsApi';
 import { applyLiveOrders, hasOrderData, queryRestaurants, withDistance } from '../lib/restaurants';
 import { supabase } from '../lib/supabase';
 
@@ -33,6 +33,8 @@ export interface RestaurantData {
   find: (id: string) => RestaurantResult | null;
   /** 가상 데이터: 시범 지역 이름 (아니면 null) */
   mockAreaName: string | null;
+  /** 관리자 점검·공지 (없으면 null) */
+  notice: string | null;
   retry: () => void;
 }
 
@@ -68,13 +70,18 @@ export function useRestaurantData(q: RestaurantQueryInput): RestaurantData {
   const [attempt, setAttempt] = useState(0);
   const [refreshTick, setRefreshTick] = useState(0);
   const [refreshSec, setRefreshSec] = useState(DEFAULT_REFRESH_SEC);
+  const [notice, setNotice] = useState<string | null>(null);
   const dbKey = origin
     ? JSON.stringify([origin.lat, origin.lng, mode, radius, category, keyword.trim(), includeTest, sort, attempt])
     : '';
   const hasOrigin = origin !== null;
 
   useEffect(() => {
-    if (db) fetchRefreshIntervalSeconds(db).then(setRefreshSec);
+    if (!db) return;
+    fetchPublicSettings(db).then((st) => {
+      setRefreshSec(st.refreshSec);
+      setNotice(st.notice);
+    });
   }, [db]);
 
   // 화면 자동 새로고침 — 주문 수집 주기와 별개. 화면이 보일 때만 돌고, 다시 보이면 바로 한 번 확인한다.
@@ -107,9 +114,11 @@ export function useRestaurantData(q: RestaurantQueryInput): RestaurantData {
   useEffect(() => {
     if (!db || !origin) return;
     let cancelled = false;
+    // 조건이 바뀌면 이전 요청은 취소한다 (늦게 온 옛 결과가 새 결과를 덮지 않게, 데이터도 아끼게)
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const handle = setTimeout(
       () => {
-        searchRestaurantsDb(db, { origin, mode, radius, category, keyword, includeTest, sort })
+        searchRestaurantsDb(db, { origin, mode, radius, category, keyword, includeTest, sort }, ctrl?.signal)
           .then((rows) => {
             if (cancelled) return;
             // 바뀐 것이 없으면 상태를 그대로 둔다 (새 주문이 생긴 것처럼 다시 그리지 않음)
@@ -132,6 +141,7 @@ export function useRestaurantData(q: RestaurantQueryInput): RestaurantData {
     return () => {
       cancelled = true;
       clearTimeout(handle);
+      ctrl?.abort();
     };
     // dbKey가 검색 조건 전체를, refreshTick이 자동 새로고침을 담고 있다
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,6 +169,7 @@ export function useRestaurantData(q: RestaurantQueryInput): RestaurantData {
     hasOrders: db ? results.some((r) => r.rankGroup === 0) : hasOrderData(results, mode),
     find,
     mockAreaName: dataset?.areaName ?? null,
+    notice,
     retry: () => setAttempt((a) => a + 1),
   };
 }

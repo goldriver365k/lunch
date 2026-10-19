@@ -62,3 +62,9 @@
 .admin-scroll { overflow-x: auto; }
 .admin-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-size: 11px; font-weight: 600; }
 .admin-badge.warn { background: var(--warn-bg); color: inherit; border: 1px solid var(--warn-line); }
+
+/* 8단계: 운영 현황 */
+.ops-hours { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; height: 120px; align-items: end; }
+.ops-hours li { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+.ops-bar { display: block; min-height: 1px; border-radius: 3px 3px 0 0; background: var(--brand); }
+.ops-hour { font-size: 10px; color: var(--muted); text-align: center; }

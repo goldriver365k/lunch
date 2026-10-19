@@ -129,14 +129,17 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
             <div>
               <dt>배달</dt>
               <dd>
-                {r.dataSource.kind === 'db' && <strong className="ok-tag">배달 가능</strong>}
+                {r.dataSource.kind === 'db' && <strong className="ok-tag">배달 가능 거리 안</strong>}
                 {/* 배달비·예상시간은 확인된 값이 있을 때만 */}
                 {[
                   r.deliveryMinutes !== undefined ? `예상 약 ${r.deliveryMinutes}분` : null,
                   r.deliveryFee !== undefined ? `배달비 ${formatPrice(r.deliveryFee)}` : null,
                 ]
                   .filter(Boolean)
-                  .join(' · ') || `배달 가능 거리 ${formatDistance(r.deliveryRadiusM ?? 0)} (확인됨)`}
+                  .join(' · ') || `매장 배달 거리 ${formatDistance(r.deliveryRadiusM ?? 0)} (확인됨)`}
+                {r.dataSource.kind === 'db' && (
+                  <span className="muted detail-note">이 주소로 실제 배달되는지는 주문할 때 배달앱에서 확인해 주세요.</span>
+                )}
               </dd>
             </div>
           )}
@@ -189,6 +192,7 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
             <div>
               <dt>확인</dt>
               <dd>
+                {r.needsReview && <span className="warn-tag">정보 확인 필요</span>}
                 {r.lastVerifiedAt ? `최종 확인 ${r.lastVerifiedAt}` : '현장 확인 전'}
                 <span className="muted"> · 정보 갱신 {formatTime(r.dataSource.updatedAt)}</span>
               </dd>

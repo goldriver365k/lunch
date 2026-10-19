@@ -401,6 +401,8 @@ $$;
 -- p_sort 'popular': [공개·최신 데이터 매장] 순위값(1차 창) ↓, 순위값(2차 창) ↓, 거리 ↑  →  [나머지] 거리 ↑
 -- p_sort 'distance': 거리 ↑
 drop function if exists public.search_restaurants(double precision, double precision, text, integer, text, text, integer, boolean);
+-- 다시 실행할 때(8단계 이후) 반환 열이 달라진 같은 이름 함수도 지운다
+drop function if exists public.search_restaurants(double precision, double precision, text, integer, text, text, integer, boolean, text);
 create or replace function public.search_restaurants(
   p_lat double precision,
   p_lng double precision,

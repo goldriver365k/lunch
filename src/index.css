@@ -410,3 +410,22 @@ button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-c
 .popular-name { flex: 1; font-weight: 600; }
 .order-links { display: flex; gap: 8px; margin-top: 12px; }
 .order-link { flex: 1; min-height: 44px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font-weight: 700; text-decoration: none; }
+
+/* 8단계: 위치 안내·공지·설치·목록 더 보기 */
+.location-panel.ask { display: flex; flex-direction: column; gap: 8px; }
+.primary-button { min-height: 48px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--brand); color: #fff; font-size: 16px; font-weight: 800; }
+.primary-button:focus-visible, .more-button:focus-visible, .chip:focus-visible { outline: 3px solid #1f3a8a; outline-offset: 2px; }
+.app-banner { margin: 8px 0 0; padding: 10px 12px; border-radius: 12px; font-size: 13px; line-height: 1.45; }
+.app-banner.notice { background: var(--brand-soft); color: #9a2a0e; }
+.app-banner.offline { background: #fee2e2; color: #8a1c1c; }
+.app-banner.update { background: #eef2ff; color: #1f3a8a; }
+.warn-tag { display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 6px; background: var(--warn-bg); border: 1px solid var(--warn-line); font-size: 11px; font-weight: 800; }
+dd .detail-note { display: block; margin-top: 2px; }
+.empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 8px 0 0; }
+.more-button { display: block; width: 100%; min-height: 48px; margin: 4px 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-weight: 700; }
+.footer-links { margin-top: 4px; }
+.sheet-steps, .sheet-list { margin: 0 0 8px; padding-left: 20px; font-size: 14px; line-height: 1.6; text-align: left; }
+.sheet-list li { margin-bottom: 6px; }
+/* 8단계: 점심시간에 한 손으로 누르기 쉽게 — 주요 선택 버튼은 44px 높이 */
+.seg { min-height: 44px; }
+.chip { min-height: 40px; }

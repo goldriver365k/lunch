@@ -10,3 +10,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** 빌드 때 넣는 앱 버전·커밋·빌드 시각 (vite.config.ts) */
+declare const __APP_BUILD__: { version: string; commit: string; builtAt: string; buildId: string };

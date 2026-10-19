@@ -9,12 +9,14 @@ import { TestLocationAdmin } from './TestLocationAdmin';
 import { OrdersAdmin } from './orders/OrdersAdmin';
 import { PopularAdmin } from './orders/PopularAdmin';
 import { MarketAdmin } from './market/MarketAdmin';
+import { OpsAdmin } from './ops/OpsAdmin';
 import './admin.css';
 
-type Tab = 'home' | 'restaurants' | 'popular' | 'orders' | 'market' | 'import' | 'test';
+type Tab = 'home' | 'ops' | 'restaurants' | 'popular' | 'orders' | 'market' | 'import' | 'test';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'home', label: '홈' },
+  { key: 'ops', label: '운영 현황' },
   { key: 'restaurants', label: '음식점·메뉴' },
   { key: 'popular', label: '실시간 인기매장' },
   { key: 'orders', label: '주문 데이터' },
@@ -97,6 +99,7 @@ function AdminHome({ client, email, onSignOut }: { client: SupabaseClient; email
         ))}
       </nav>
       {tab === 'home' && <AdminDashboard client={client} />}
+      {tab === 'ops' && <OpsAdmin client={client} />}
       {tab === 'restaurants' && <RestaurantAdmin client={client} />}
       {tab === 'popular' && <PopularAdmin client={client} />}
       {tab === 'orders' && <OrdersAdmin client={client} />}
