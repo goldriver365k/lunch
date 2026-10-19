@@ -3,6 +3,7 @@ import type { Mode, RestaurantResult } from '../types';
 import { CHANNEL_LABEL } from '../lib/channels';
 import { MAP_PROVIDER_LABEL, routeDestinationOf, type MapProvider, type RoutePlace } from '../lib/mapLinks';
 import { formatDistance, formatMenuPrice, formatPrice, menusForChannel, ordersFor, walkMinutes } from '../lib/restaurants';
+import { activityWindows, asOfTime, providerNames } from '../lib/activity';
 
 interface Props {
   restaurant: RestaurantResult;
@@ -121,8 +122,29 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
           <div>
             <dt>주문</dt>
             <dd>
-              {orders === undefined ? (
-                '실시간 주문정보 준비 중'
+              {r.activity ? (
+                <>
+                  {activityWindows(r.activity).map((w) => `${w.label} ${channel} 주문 ${w.level}`).join(' · ')}
+                  {r.activity.scope === 'test' && <span className="test-tag">테스트 데이터</span>}
+                  <br />
+                  {r.activity.topMenu && (
+                    <>
+                      {channel} 인기메뉴: <strong>{r.activity.topMenu.name}</strong>
+                      <br />
+                    </>
+                  )}
+                  {mode === 'delivery' && providerNames(r.activity).length > 0 && (
+                    <>
+                      {providerNames(r.activity).join('·')} 주문 기준
+                      <br />
+                    </>
+                  )}
+                  <span className="muted">
+                    {asOfTime(r.activity.asOf)} 기준 주문 집계 · 매장 안 손님 수나 대기시간이 아니에요
+                  </span>
+                </>
+              ) : orders === undefined ? (
+                '주문정보 없음'
               ) : (
                 <>
                   최근 30분 {channel} 주문 {orders}건{' '}

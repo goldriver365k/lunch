@@ -43,3 +43,17 @@
 .admin-login { max-width: 360px; margin: 24px auto; }
 .admin-dups, .admin-preview-list { padding-left: 18px; }
 @media (max-width: 560px) { .admin-list td:nth-child(2), .admin-list th:nth-child(2) { display: none; } }
+
+/* 5단계: 주문 데이터 */
+.admin-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.admin-scope.test { background: #eef2ff; border-color: #1f3a8a; }
+.admin-subtabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+.admin-subtab { min-height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 600; }
+.admin-subtab.active { background: var(--brand-soft); color: var(--brand); }
+.admin-test-badge { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: #1f3a8a; color: #fff; font-size: 11px; font-weight: 700; vertical-align: middle; }
+.admin-status { display: inline-block; margin-left: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--line); }
+.admin-status.active { background: #dcfce7; color: #166534; }
+.admin-status.error { background: #fee2e2; color: #b42318; }
+.admin-status.paused { background: #fef3c7; color: #92400e; }
+.admin-picker ul { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 4px; }
+.admin-picked { margin: 0; }

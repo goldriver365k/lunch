@@ -1,6 +1,6 @@
 import type { Category, Mode, Radius, SortKey } from '../types';
 
-export const APP_NAME = '뭐먹';
+export const APP_NAME = '점심뭐먹';
 export const SLOGAN = '지금 다들 뭐 먹어?';
 
 export const MODES: { key: Mode; label: string; emoji: string }[] = [

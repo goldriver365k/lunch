@@ -1,5 +1,6 @@
 import type { Mode, RestaurantResult } from '../types';
-import { formatDistance, formatMenuPrice, formatPrice, menusForChannel, ordersFor, walkMinutes } from '../lib/restaurants';
+import { formatDistance, formatMenuPrice, formatPrice, ordersFor, walkMinutes } from '../lib/restaurants';
+import { activitySummary, asOfTime, featuredMenu } from '../lib/activity';
 
 interface Props {
   restaurant: RestaurantResult;
@@ -25,8 +26,10 @@ function modeMeta(r: RestaurantResult, mode: Mode): string {
 }
 
 export function RestaurantCard({ restaurant: r, rank, mode, onOpen }: Props) {
-  const top = menusForChannel(r, mode)[0];
+  const featured = featuredMenu(r, mode);
+  const top = featured?.priced;
   const orders = ordersFor(r, mode);
+  const activity = r.activity ? activitySummary(r.activity, mode) : null;
   return (
     <li className="card">
       <button type="button" className="card-head" aria-haspopup="dialog" onClick={onOpen}>
@@ -37,9 +40,12 @@ export function RestaurantCard({ restaurant: r, rank, mode, onOpen }: Props) {
             <span className="category">{r.category}</span>
           </span>
           <span className="card-menu">
-            {top ? (
+            {featured && top ? (
               <>
-                <span className="card-menu-name">{top.menu.name}</span>
+                <span className="card-menu-name">
+                  {featured.popular && <span className="popular-tag">인기</span>}
+                  {top.menu.name}
+                </span>
                 <span className={top.price === null ? 'price muted' : 'price'}>{formatMenuPrice(top.price)}</span>
               </>
             ) : (
@@ -50,8 +56,13 @@ export function RestaurantCard({ restaurant: r, rank, mode, onOpen }: Props) {
             직선 {formatDistance(r.distanceM)}
             {r.rating !== undefined && ` · ★ ${r.rating.toFixed(1)}`} · {modeMeta(r, mode)}
           </span>
-          {orders === undefined ? (
-            <span className="live muted">실시간 주문정보 준비 중</span>
+          {activity && r.activity ? (
+            <span className="live">
+              📈 {activity} · {asOfTime(r.activity.asOf)} 기준
+              {r.activity.scope === 'test' && <span className="test-tag">테스트 데이터</span>}
+            </span>
+          ) : orders === undefined ? (
+            <span className="live muted">주문정보 없음</span>
           ) : (
             <span className="live">🔥 최근 30분 주문 {orders}건 (가상)</span>
           )}

@@ -28,7 +28,7 @@ vi.mock('./lib/supabase', async () => {
       const origin = { lat: args.p_lat as number, lng: args.p_lng as number };
       const data = h.rows
         .map((r) => ({ ...r, distance_m: Math.round(dist(origin, { lat: r.lat, lng: r.lng })) }))
-        .filter((r) => r.distance_m <= (args.p_radius_m as number))
+        .filter((r) => r.distance_m <= (args.p_mode === 'delivery' ? (r.delivery_radius_m ?? -1) : (args.p_radius_m as number)))
         .filter((r) => (args.p_mode === 'takeout' ? r.takeout !== 'no' : args.p_mode === 'walk' ? r.dine_in !== 'no' : r.delivery === 'yes'))
         .filter((r) => !args.p_category || r.category === args.p_category)
         .sort((a, b) => a.distance_m - b.distance_m);
@@ -124,14 +124,15 @@ describe('실제 DB 모드 — 소비자 화면', () => {
     expect(h.rpc).toHaveBeenLastCalledWith('search_restaurants', expect.objectContaining({ p_radius_m: 300 }));
   });
 
-  it('주문정보가 없으면 0건으로 쓰지 않고 “실시간 주문정보 준비 중” + 거리순', async () => {
+  it('주문정보가 없으면 0건으로 쓰지 않고 “주문정보 없음” + 거리순', async () => {
     gpsAt(STATIONS.seolleung.point);
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole('radio', { name: '300m' }));
     await waitFor(() => expect(names()).toHaveLength(3));
-    expect(screen.getByText('실시간 주문정보 준비 중 · 가까운 순으로 보여드려요')).toBeInTheDocument();
-    expect(screen.getAllByText('실시간 주문정보 준비 중')).toHaveLength(3);
+    expect(screen.getByText('주문 활발도 순 정렬은 준비 중이에요 · 가까운 순으로 보여드려요')).toBeInTheDocument();
+    expect(screen.getAllByText('주문정보 없음')).toHaveLength(3);
+    expect(document.body.textContent).not.toContain('실시간');
     expect(screen.queryByText(/주문 0건/)).not.toBeInTheDocument();
     const card = screen.getByRole('button', { name: /오십미터 백반/ });
     expect(card).toHaveTextContent('김치찌개9,000원');
@@ -189,7 +190,7 @@ describe('실제 DB 모드 — 소비자 화면', () => {
     const d = screen.getByRole('dialog', { name: /상세정보/ });
     expect(within(d).getByRole('region', { name: '대표메뉴' })).toHaveTextContent('김치찌개9,000원');
     expect(within(d).getByRole('region', { name: '추가 메뉴' })).toHaveTextContent('공기밥가격정보 없음');
-    expect(d).toHaveTextContent('실시간 주문정보 준비 중');
+    expect(d).toHaveTextContent('주문정보 없음');
     expect(d).toHaveTextContent('현장 확인 전');
     expect(within(d).queryByText('가상 매장')).not.toBeInTheDocument();
 
@@ -282,5 +283,84 @@ describe('관리자 테스트 위치 — 소비자 화면', () => {
     await user.click(screen.getByRole('button', { name: '종료' }));
     await waitFor(() => expect(names()).toEqual(['오십미터 백반']));
     expect(distanceM(STATIONS.seolleung.point, STATIONS.yeoksam.point)).toBeGreaterThan(1000);
+  });
+});
+
+describe('5단계 — 주문 활발도 표시 (정렬은 바꾸지 않음)', () => {
+  const act = (over: Partial<NonNullable<DbSearchRow['activity']>> = {}): NonNullable<DbSearchRow['activity']> => ({
+    scope: 'public',
+    as_of: '2026-10-19T03:40:00Z',
+    windows: { '30m': 12, '60m': 25 },
+    by_provider: null,
+    top_menu: null,
+    ...over,
+  });
+
+  it('공개 집계가 있는 매장만 활발도를 보여주고 순서는 거리순 그대로', async () => {
+    h.rows[1] = { ...h.rows[1], activity: act() };
+    gpsAt(STATIONS.seolleung.point);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('radio', { name: '300m' }));
+    await waitFor(() => expect(names()).toEqual(['오십미터 백반', '백오십 국수', '이백오십 중식당']));
+    expect(screen.getByRole('button', { name: /백오십 국수/ })).toHaveTextContent('📈 최근 30분 홀 주문 활발 · 오후 12:40 기준');
+    expect(screen.getByRole('button', { name: /오십미터 백반/ })).toHaveTextContent('주문정보 없음');
+    expect(document.body.textContent).not.toMatch(/실시간|손님 수 \d/);
+    expect(screen.queryByText(/12건/)).not.toBeInTheDocument(); // 정확한 건수는 공개하지 않음
+
+    await user.click(screen.getByRole('button', { name: /백오십 국수/ }));
+    const d = screen.getByRole('dialog', { name: /상세정보/ });
+    expect(d).toHaveTextContent('최근 30분 홀 주문 활발 · 최근 60분 홀 주문 매우 활발');
+    expect(d).toHaveTextContent('매장 안 손님 수나 대기시간이 아니에요');
+  });
+
+  it('배달: 인기메뉴와 배달 가격, 배민·쿠팡이츠 제공처 구분', async () => {
+    h.rows = [
+      row('배달 불백', 120, 0, STATIONS.seolleung.point, {
+        delivery: 'yes',
+        delivery_radius_m: 2000,
+        menus: [
+          { id: 'sig', name: '돼지불백', is_signature: true, price_dine_in: 9000, price_delivery: 10000, price_takeout: null, price_verified_at: null },
+          { id: 'hot', name: '고추장불백', is_signature: false, price_dine_in: 9500, price_delivery: 10500, price_takeout: null, price_verified_at: null },
+        ],
+        activity: act({
+          windows: { '10m': 6 },
+          by_provider: { baemin: 4, coupangeats: 2 },
+          top_menu: { menu_id: 'hot', name: '고추장불백', quantity: 9 },
+        }),
+      }),
+    ];
+    gpsAt(STATIONS.seolleung.point);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('tab', { name: /배달/ }));
+    await waitFor(() => expect(names()).toEqual(['배달 불백']));
+    const card = screen.getByRole('button', { name: /배달 불백/ });
+    expect(card).toHaveTextContent('인기고추장불백10,500원');
+    expect(card).toHaveTextContent('최근 10분 배달 주문 있음');
+    await user.click(card);
+    const d = screen.getByRole('dialog', { name: /상세정보/ });
+    expect(d).toHaveTextContent('배달 인기메뉴: 고추장불백');
+    expect(d).toHaveTextContent('배민·쿠팡이츠 주문 기준');
+    expect(d).not.toHaveTextContent(/배민 4|쿠팡이츠 2/);
+    // 배달비·예상 배달시간 정보가 없으면 표시하지 않는다
+    expect(d).not.toHaveTextContent(/배달비|약 \d+분/);
+  });
+
+  it('일반 화면은 테스트 집계를 요청하지 않고, 관리자 테스트 모드만 요청하며 “테스트 데이터”로 표시', async () => {
+    gpsAt(STATIONS.seolleung.point);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(names()).toEqual(['오십미터 백반']));
+    expect(h.rpc).toHaveBeenLastCalledWith('search_restaurants', expect.not.objectContaining({ p_include_test: true }));
+    unmount();
+
+    h.isAdmin = true;
+    h.hasSession = true;
+    sessionStorage.setItem('mwomeok.testLocation', 'seolleung');
+    h.rows[0] = { ...h.rows[0], activity: act({ scope: 'test', windows: { '10m': 30 } }) };
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('테스트 모드'));
+    await waitFor(() => expect(h.rpc).toHaveBeenLastCalledWith('search_restaurants', expect.objectContaining({ p_include_test: true })));
+    await waitFor(() => expect(screen.getByRole('button', { name: /오십미터 백반/ })).toHaveTextContent('테스트 데이터'));
   });
 });

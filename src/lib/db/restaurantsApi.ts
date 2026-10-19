@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Category, ChannelStatus, GeoPoint, MenuItem, Mode, Radius, RestaurantResult } from '../../types';
+import type { Category, ChannelStatus, GeoPoint, MenuItem, Mode, OrderActivity, Radius, RestaurantResult } from '../../types';
 import { CATEGORIES } from '../constants';
 
 /** search_restaurants RPC가 돌려주는 행 */
@@ -27,6 +27,25 @@ export interface DbSearchRow {
     price_takeout: number | null;
     price_verified_at: string | null;
   }[];
+  /** 주문 활발도 (5단계) — 공개 기준을 넘는 경우만 */
+  activity?: {
+    scope: 'public' | 'test';
+    as_of: string;
+    windows: Partial<Record<'10m' | '30m' | '60m' | 'lunch', number>>;
+    by_provider: OrderActivity['byProvider'];
+    top_menu: { menu_id: string; name: string; quantity: number } | null;
+  } | null;
+}
+
+function mapActivity(a: DbSearchRow['activity']): OrderActivity | null {
+  if (!a || Object.keys(a.windows ?? {}).length === 0) return null;
+  return {
+    scope: a.scope,
+    asOf: a.as_of,
+    windows: a.windows,
+    byProvider: a.by_provider ?? null,
+    topMenu: a.top_menu ? { menuId: a.top_menu.menu_id, name: a.top_menu.name, quantity: a.top_menu.quantity } : null,
+  };
 }
 
 function toCategory(raw: string): Category {
@@ -61,6 +80,7 @@ export function mapDbRow(row: DbSearchRow): RestaurantResult {
     deliveryRadiusM: row.delivery_radius_m ?? undefined,
     dataSource: { kind: 'db', realtime: false, updatedAt: row.updated_at },
     lastVerifiedAt: row.last_verified_at,
+    activity: mapActivity(row.activity),
     distanceM: row.distance_m,
   };
 }
@@ -71,6 +91,8 @@ export interface DbSearchParams {
   radius: Radius;
   category: Category | null;
   keyword: string;
+  /** 관리자 테스트 모드: 테스트 주문 집계를 보여준다 (서버에서 관리자일 때만 적용) */
+  includeTest?: boolean;
 }
 
 /** 서버(PostGIS)에서 반경 검색 — 전체 음식점을 내려받지 않는다 */
@@ -82,6 +104,7 @@ export async function searchRestaurantsDb(client: SupabaseClient, p: DbSearchPar
     p_radius_m: p.radius,
     p_category: p.category,
     p_keyword: p.keyword.trim() || null,
+    ...(p.includeTest ? { p_include_test: true } : {}),
   });
   if (error) throw error;
   return (data as DbSearchRow[]).map(mapDbRow);

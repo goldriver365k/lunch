@@ -92,6 +92,8 @@ export interface Restaurant {
   dataSource: DataSourceInfo;
   /** 최종 확인일 (실제 DB) */
   lastVerifiedAt?: string | null;
+  /** 현재 탭 채널의 주문 활발도 — 없으면 '주문정보 없음' (0건 아님) */
+  activity?: OrderActivity | null;
   /** 배달 예상 시간(분) — 배달 지원 시 */
   deliveryMinutes?: number;
   deliveryFee?: number;
@@ -99,6 +101,20 @@ export interface Restaurant {
   deliveryRadiusM?: number;
   /** 포장 준비 시간(분) — 포장 지원 시 */
   takeoutMinutes?: number;
+}
+
+/** 주문 활발도 — 공개 허용된 실제 주문 집계 (또는 관리자 테스트 집계) */
+export interface OrderActivity {
+  /** 'public' = 실제 공개 집계, 'test' = 관리자 테스트 데이터 */
+  scope: 'public' | 'test';
+  /** 집계 갱신시각 */
+  asOf: string;
+  /** 최소 공개 건수 이상인 창만 들어 있다 */
+  windows: Partial<Record<'10m' | '30m' | '60m' | 'lunch', number>>;
+  /** 배달: 제공처별 (배민·쿠팡이츠) */
+  byProvider: Partial<Record<'pos' | 'baemin' | 'coupangeats' | 'csv', number>> | null;
+  /** 오늘 이 채널 판매 수량 1위 메뉴 (내부 메뉴와 연결된 것만) */
+  topMenu: { menuId: string; name: string; quantity: number } | null;
 }
 
 /** 기준 위치로부터의 직선거리가 계산된 음식점 */

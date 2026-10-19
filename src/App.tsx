@@ -60,7 +60,7 @@ export default function App() {
       : pilotArea(deliveryTarget).center
     : currentPoint;
 
-  const data = useRestaurantData({ origin, mode, radius, category, keyword, sort });
+  const data = useRestaurantData({ origin, mode, radius, category, keyword, sort, includeTest: !!testLocation.station });
   const results = data.results;
 
   // 상세화면은 고유 ID로 해당 매장 한 곳만 찾아 보여준다
@@ -160,7 +160,7 @@ export default function App() {
             <SortToggle value={sort} onChange={setSort} />
           </div>
           {!data.loading && results.length > 0 && sort === 'popular' && !data.hasOrders && (
-            <p className="list-note">실시간 주문정보 준비 중 · 가까운 순으로 보여드려요</p>
+            <p className="list-note">주문 활발도 순 정렬은 준비 중이에요 · 가까운 순으로 보여드려요</p>
           )}
           {data.error ? (
             <p className="empty" role="alert">

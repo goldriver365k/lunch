@@ -56,7 +56,7 @@ describe('App — 1단계 기능 유지', () => {
   it('앱 이름, 슬로건, 가상 데이터 안내를 보여준다', () => {
     gpsAtSeolleung();
     render(<App />);
-    expect(screen.getByRole('heading', { name: '뭐먹' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '점심뭐먹' })).toBeInTheDocument();
     expect(screen.getByText('지금 다들 뭐 먹어?')).toBeInTheDocument();
     expect(screen.getByRole('note')).toHaveTextContent('가상 데이터');
   });

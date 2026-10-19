@@ -15,6 +15,8 @@ export interface RestaurantQueryInput {
   category: Category | null;
   keyword: string;
   sort: SortKey;
+  /** 관리자 테스트 모드 — 테스트 주문 집계 표시 */
+  includeTest?: boolean;
 }
 
 export interface RestaurantData {
@@ -39,7 +41,7 @@ export interface RestaurantData {
  */
 export function useRestaurantData(q: RestaurantQueryInput): RestaurantData {
   const db = supabase;
-  const { origin, mode, radius, category, keyword, sort } = q;
+  const { origin, mode, radius, category, keyword, sort, includeTest = false } = q;
 
   // ── 가상 데이터 ──
   const [live, setLive] = useState({ tick: 0, updatedAt: MOCK_UPDATED_AT });
@@ -60,13 +62,13 @@ export function useRestaurantData(q: RestaurantQueryInput): RestaurantData {
   // ── 실제 DB ──
   const [dbState, setDbState] = useState<{ key: string; rows: RestaurantResult[]; error: string | null } | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const dbKey = origin ? JSON.stringify([origin.lat, origin.lng, mode, radius, category, keyword.trim(), attempt]) : '';
+  const dbKey = origin ? JSON.stringify([origin.lat, origin.lng, mode, radius, category, keyword.trim(), includeTest, attempt]) : '';
   useEffect(() => {
     if (!db || !origin) return;
     let cancelled = false;
     const handle = setTimeout(
       () => {
-        searchRestaurantsDb(db, { origin, mode, radius, category, keyword })
+        searchRestaurantsDb(db, { origin, mode, radius, category, keyword, includeTest })
           .then((rows) => !cancelled && setDbState({ key: dbKey, rows, error: null }))
           .catch(() => !cancelled && setDbState({ key: dbKey, rows: [], error: '음식점 정보를 불러오지 못했어요.' }));
       },
