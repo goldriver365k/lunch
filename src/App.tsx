@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Category, GeoPoint, Mode, Radius, SortKey } from './types';
 import { pilotArea } from './data/pilotAreas';
 import { ROUTE_TEST_PLACES } from './data/routeTestPlaces';
@@ -64,7 +64,11 @@ export default function App() {
   const results = data.results;
 
   // 상세화면은 고유 ID로 해당 매장 한 곳만 찾아 보여준다
-  const selected = selectedId ? data.find(selectedId) : null;
+  // 자동 새로고침으로 매장이 목록에서 잠시 빠져도 열어 둔 상세화면은 닫지 않는다
+  const lastSelected = useRef<ReturnType<typeof data.find>>(null);
+  const found = selectedId ? data.find(selectedId) : null;
+  if (found) lastSelected.current = found;
+  const selected = selectedId ? (found ?? (lastSelected.current?.id === selectedId ? lastSelected.current : null)) : null;
 
   // 길찾기 출발지는 실제 GPS 위치일 때만 쓴다 (시범 위치는 출발지로 쓰지 않음)
   const gpsOrigin: RoutePlace | null = useMemo(
@@ -160,7 +164,7 @@ export default function App() {
             <SortToggle value={sort} onChange={setSort} />
           </div>
           {!data.loading && results.length > 0 && sort === 'popular' && !data.hasOrders && (
-            <p className="list-note">주문 활발도 순 정렬은 준비 중이에요 · 가까운 순으로 보여드려요</p>
+            <p className="list-note">실시간 주문정보 준비 중 · 거리순으로 보여드려요</p>
           )}
           {data.error ? (
             <p className="empty" role="alert">
@@ -178,7 +182,15 @@ export default function App() {
           ) : (
             <ol className="list">
               {results.map((r, i) => (
-                <RestaurantCard key={r.id} restaurant={r} rank={i + 1} mode={mode} onOpen={() => openDetail(r.id)} />
+                <Fragment key={r.id}>
+                  {/* 지금 주문 많은 순: 주문 데이터로 순위가 매겨진 매장 다음에 데이터 없는 매장을 거리순으로 */}
+                  {sort === 'popular' && r.rankGroup === 1 && results[i - 1]?.rankGroup === 0 && (
+                    <li className="list-divider" aria-label="주문정보가 없거나 갱신이 늦은 매장 · 거리순">
+                      주문정보가 없거나 갱신이 늦은 매장 · 거리순
+                    </li>
+                  )}
+                  <RestaurantCard restaurant={r} rank={i + 1} mode={mode} onOpen={() => openDetail(r.id)} />
+                </Fragment>
               ))}
             </ol>
           )}

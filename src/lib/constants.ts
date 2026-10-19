@@ -31,7 +31,7 @@ export const CATEGORIES: Category[] = [
 ];
 
 export const SORTS: { key: SortKey; label: string }[] = [
-  { key: 'popular', label: '최근 주문 많은 순' },
+  { key: 'popular', label: '지금 주문 많은 순' },
   { key: 'distance', label: '거리순' },
 ];
 

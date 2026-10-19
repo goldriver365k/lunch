@@ -101,20 +101,35 @@ export interface Restaurant {
   deliveryRadiusM?: number;
   /** 포장 준비 시간(분) — 포장 지원 시 */
   takeoutMinutes?: number;
+  /** 승인된 배달앱 주문 링크 (관리자가 확인한 것만) */
+  orderLinks?: { baemin?: string; coupangeats?: string };
+  /** 서버 순위 그룹: 0 = 주문 데이터로 순위, 1 = 주문정보 없음·갱신 지연 (거리순) */
+  rankGroup?: number;
 }
 
-/** 주문 활발도 — 공개 허용된 실제 주문 집계 (또는 관리자 테스트 집계) */
+/**
+ * 주문 활발도 상태
+ * - active: 최근 주문 확인 / none_recent: 최근 주문 없음 / delayed: 데이터 갱신 지연
+ * - 연동이 없으면 activity 자체가 없다 → '주문정보 없음' (0건이 아님)
+ */
+export type ActivityStatus = 'active' | 'none_recent' | 'delayed';
+
+/** 주문 활발도 — 공개 허용된 실제 주문 집계 (또는 관리자 테스트 집계). 순위는 서버가 계산한다 */
 export interface OrderActivity {
   /** 'public' = 실제 공개 집계, 'test' = 관리자 테스트 데이터 */
   scope: 'public' | 'test';
-  /** 집계 갱신시각 */
+  status: ActivityStatus;
+  /** 데이터 기준시각 */
   asOf: string;
+  /** 순위 집계시간 (기본 10분·30분, 관리자 설정) */
+  primaryMinutes: number;
+  secondaryMinutes: number;
   /** 최소 공개 건수 이상인 창만 들어 있다 */
   windows: Partial<Record<'10m' | '30m' | '60m' | 'lunch', number>>;
-  /** 배달: 제공처별 (배민·쿠팡이츠) */
-  byProvider: Partial<Record<'pos' | 'baemin' | 'coupangeats' | 'csv', number>> | null;
-  /** 오늘 이 채널 판매 수량 1위 메뉴 (내부 메뉴와 연결된 것만) */
-  topMenu: { menuId: string; name: string; quantity: number } | null;
+  /** 배달: 주문이 들어온 제공처 이름 (건수 비공개) */
+  providers: ('pos' | 'baemin' | 'coupangeats' | 'csv')[];
+  /** 이 채널 오늘 판매 수량 순 인기메뉴 (기록이 충분하고 내부 메뉴와 연결된 것만, 수량 비공개) */
+  topMenus: { menuId: string; name: string }[];
 }
 
 /** 기준 위치로부터의 직선거리가 계산된 음식점 */

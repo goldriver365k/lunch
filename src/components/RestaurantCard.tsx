@@ -12,10 +12,12 @@ interface Props {
 function modeMeta(r: RestaurantResult, mode: Mode): string {
   const status = r.channelStatus[mode];
   if (mode === 'delivery') {
-    if (r.deliveryMinutes !== undefined) {
-      return `배달 ${r.deliveryMinutes}분 · 배달비 ${formatPrice(r.deliveryFee ?? 0)}`;
-    }
-    return '배달 가능 지역 확인됨';
+    // 배달비·예상시간은 확인된 값이 있을 때만 (임의로 만들지 않음)
+    const parts = [
+      r.deliveryMinutes !== undefined ? `배달 ${r.deliveryMinutes}분` : null,
+      r.deliveryFee !== undefined ? `배달비 ${formatPrice(r.deliveryFee)}` : null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : '배달 가능 지역 확인됨';
   }
   if (mode === 'takeout') {
     if (status === 'unknown') return '포장 운영 미확인';
@@ -56,9 +58,11 @@ export function RestaurantCard({ restaurant: r, rank, mode, onOpen }: Props) {
             직선 {formatDistance(r.distanceM)}
             {r.rating !== undefined && ` · ★ ${r.rating.toFixed(1)}`} · {modeMeta(r, mode)}
           </span>
+          {mode === 'delivery' && r.dataSource.kind === 'db' && <span className="ok-tag">배달 가능</span>}
           {activity && r.activity ? (
-            <span className="live">
-              📈 {activity} · {asOfTime(r.activity.asOf)} 기준
+            <span className={r.activity.status === 'active' ? 'live' : 'live muted'}>
+              {r.activity.status === 'active' ? '📈 ' : ''}
+              {activity} · {asOfTime(r.activity.asOf)} 기준
               {r.activity.scope === 'test' && <span className="test-tag">테스트 데이터</span>}
             </span>
           ) : orders === undefined ? (

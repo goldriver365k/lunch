@@ -174,11 +174,12 @@ reset role; set role anon; select set_config('request.jwt.claims', '{"role":"ano
 select pg_temp.check((select activity -> 'windows' ->> '10m' is null and (activity -> 'windows' ->> '30m')::int = 5
                         from public.search_restaurants(37.5045, 127.049, 'walk', 100) where name = '시험 불백식당'),
                      '소비자: 최소 공개 5건 미만 창(10분 4건)은 숨기고 30분 5건만 공개');
-select pg_temp.check((select activity -> 'top_menu' ->> 'name' from public.search_restaurants(37.5045, 127.049, 'walk', 100)
+select pg_temp.check((select activity -> 'top_menus' -> 0 ->> 'name' from public.search_restaurants(37.5045, 127.049, 'walk', 100)
                        where name = '시험 불백식당') = '돼지불백', '소비자: 홀 인기메뉴 공개 (내부 메뉴와 연결된 것만)');
 select pg_temp.check((select activity is null from public.search_restaurants(37.5045, 127.049, 'walk', 100) where name = '시험 옆집'),
                      '연동되지 않은 매장은 activity 없음 (0건이 아님)');
-select pg_temp.check((select activity is null from public.search_restaurants(37.5045, 127.049, 'delivery', 100) where name = '시험 불백식당'),
+select pg_temp.check((select activity -> 'windows' = '{}'::jsonb and activity -> 'providers' = '[]'::jsonb
+                        from public.search_restaurants(37.5045, 127.049, 'delivery', 100) where name = '시험 불백식당'),
                      '배달: 공개 허용 주문(배민 2)이 최소 건수 미만이면 비공개 — 쿠팡이츠(공개 불허)는 공개 집계에서 제외');
 select pg_temp.check(not exists (select 1 from public.public_order_activity(array['20000000-0000-0000-0000-000000000001'::uuid], 'HALL', true)
                                   where activity ->> 'scope' = 'test'), '일반 이용자는 테스트 집계를 요청해도 볼 수 없음');
@@ -244,14 +245,22 @@ select pg_temp.check((select calls_this_month from public.order_connections wher
 -- ───── 최소 공개 건수 변경·오래된 집계 ─────
 update public.order_settings set min_public_count = 7;
 reset role; set role anon; select set_config('request.jwt.claims', '{"role":"anon"}', false);
-select pg_temp.check((select activity is null from public.search_restaurants(37.5045, 127.049, 'walk', 100) where name = '시험 불백식당'),
-                     '최소 공개 건수를 7로 올리면 30분 5건·60분 6건도 비공개');
+select pg_temp.check((select activity -> 'windows' = '{}'::jsonb and (activity ->> 'rank_secondary')::int = 0
+                        from public.search_restaurants(37.5045, 127.049, 'walk', 100) where name = '시험 불백식당'),
+                     '최소 공개 건수를 7로 올리면 30분 5건·60분 6건도 비공개 (건수·순위값 숨김)');
 reset role;
 update public.order_settings set min_public_count = 5;
-update public.order_aggregates set refreshed_at = now() - interval '1 hour';
+-- 주기 조회형 연동이 15분 넘게 수집하지 못하면 '데이터 갱신 지연' — 건수·순위값을 내보내지 않는다
+update public.order_connections set ingest_mode = 'polling', last_success_at = now() - interval '1 hour'
+ where id = '40000000-0000-0000-0000-0000000000a1';
 set role anon;
-select pg_temp.check((select activity is null from public.search_restaurants(37.5045, 127.049, 'walk', 100) where name = '시험 불백식당'),
-                     '갱신이 오래된(15분 초과) 집계는 소비자에게 보이지 않음');
+select pg_temp.check((select activity ->> 'status' = 'delayed' and activity -> 'windows' = '{}'::jsonb
+                        from public.search_restaurants(37.5045, 127.049, 'walk', 100) where name = '시험 불백식당'),
+                     '갱신이 오래된(15분 초과) 데이터는 소비자에게 건수·순위 없이 ‘갱신 지연’으로만');
+reset role;
+update public.order_connections set ingest_mode = 'webhook', last_success_at = now()
+ where id = '40000000-0000-0000-0000-0000000000a1';
+set role anon;
 reset role;
 
 -- ───── 테스트 데이터 삭제 ─────

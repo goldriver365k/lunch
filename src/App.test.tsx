@@ -150,12 +150,12 @@ describe('App — 검색·정렬', () => {
     expect(at200).toBeLessThan(cardNames().length);
   });
 
-  it('기본 정렬은 최근 주문 많은 순, 거리순으로 바꿀 수 있다', async () => {
+  it('기본 정렬은 지금 주문 많은 순, 거리순으로 바꿀 수 있다', async () => {
     gpsAtSeolleung();
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole('radio', { name: '300m' }));
-    expect(screen.getByRole('radio', { name: '최근 주문 많은 순' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: '지금 주문 많은 순' })).toHaveAttribute('aria-checked', 'true');
     const orders = cardNumbers(/주문 (\d+)건/);
     expect(orders).toEqual([...orders].sort((a, b) => b - a));
     expect(screen.getAllByText(/\(가상\)/).length).toBe(orders.length);
@@ -221,7 +221,7 @@ describe('App — 3단계 매장 상세화면', () => {
     expect(d).toHaveTextContent(/가상 주소 · 선릉역 .+쪽 약 95m/);
     const sig = within(d).getByRole('region', { name: '대표메뉴' });
     expect(sig).toHaveTextContent('대표메뉴 · 홀 가격');
-    expect(sig).toHaveTextContent('짬뽕9,000원');
+    expect(sig).toHaveTextContent('짬뽕배달 10,000원 · 포장 9,000원9,000원'); // 다른 채널 가격은 따로 표시
     const extra = within(d).getByRole('region', { name: '추가 메뉴' });
     expect(extra).toHaveTextContent('짜장면7,000원');
     expect(extra).toHaveTextContent('탕수육 소16,000원');
@@ -251,7 +251,7 @@ describe('App — 3단계 매장 상세화면', () => {
 
     render(<App />);
     ({ d } = await openStore('빨간짬뽕집', { tab: /배달/ }));
-    expect(within(d).getByRole('region', { name: '대표메뉴' })).toHaveTextContent('짬뽕10,000원');
+    expect(within(d).getByRole('region', { name: '대표메뉴' })).toHaveTextContent('짬뽕홀 9,000원 · 포장 9,000원10,000원');
     expect(d).toHaveTextContent('탕수육 소18,000원');
     expect(d).not.toHaveTextContent('군만두'); // 배달 가격이 없는 메뉴
     expect(d).toHaveTextContent(/배달 주소에서 직선/);

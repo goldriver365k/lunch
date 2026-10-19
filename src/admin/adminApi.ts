@@ -29,6 +29,13 @@ export interface AdminRestaurant {
   delivery: ChannelStatus;
   takeout: ChannelStatus;
   delivery_radius_m: number | null;
+  /** 확인된 배달비(원) — 없으면 소비자 화면에 표시하지 않음 */
+  delivery_fee_krw: number | null;
+  /** 확인된 배달 예상시간(분) */
+  delivery_eta_minutes: number | null;
+  /** 승인된 배달앱 주문 링크 (https만) */
+  baemin_order_url: string | null;
+  coupangeats_order_url: string | null;
   has_signature_menu: boolean;
   source: 'public_data' | 'admin';
   source_name: string | null;
@@ -54,6 +61,10 @@ export type RestaurantEditable = Pick<
   | 'delivery'
   | 'takeout'
   | 'delivery_radius_m'
+  | 'delivery_fee_krw'
+  | 'delivery_eta_minutes'
+  | 'baemin_order_url'
+  | 'coupangeats_order_url'
   | 'verify_status'
   | 'last_verified_at'
   | 'is_public'

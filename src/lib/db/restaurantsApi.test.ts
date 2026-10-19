@@ -61,6 +61,7 @@ describe('searchRestaurantsDb', () => {
       p_radius_m: 200,
       p_category: '한식',
       p_keyword: '찌개',
+      p_sort: 'popular',
     });
     expect(rows).toHaveLength(1);
     expect(client.from).not.toHaveBeenCalled();

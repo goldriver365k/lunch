@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   isAdmin: false,
   hasSession: false,
   rpcError: false,
+  refreshSec: 60,
   rpc: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
 }));
 
@@ -23,6 +24,7 @@ vi.mock('./lib/supabase', async () => {
   const { client } = fakeSupabase({
     rpc: (fn, args) => {
       if (fn === 'is_admin') return { data: h.isAdmin, error: null };
+      if (fn === 'public_app_settings') return { data: { refresh_interval_seconds: h.refreshSec }, error: null };
       if (fn !== 'search_restaurants') return { data: null, error: { message: 'unknown' } };
       if (h.rpcError) return { data: null, error: { message: 'boom' } };
       const origin = { lat: args.p_lat as number, lng: args.p_lng as number };
@@ -31,7 +33,17 @@ vi.mock('./lib/supabase', async () => {
         .filter((r) => r.distance_m <= (args.p_mode === 'delivery' ? (r.delivery_radius_m ?? -1) : (args.p_radius_m as number)))
         .filter((r) => (args.p_mode === 'takeout' ? r.takeout !== 'no' : args.p_mode === 'walk' ? r.dine_in !== 'no' : r.delivery === 'yes'))
         .filter((r) => !args.p_category || r.category === args.p_category)
-        .sort((a, b) => a.distance_m - b.distance_m);
+        // 서버와 같은 정렬: [최신 공개 데이터] 1차 창 ↓ → 2차 창 ↓ → (포장) 운영 확인 → 거리 ↑, 그다음 [나머지] 같은 방식
+        .map((r) => ({ ...r, rank_group: r.activity && ['active', 'none_recent'].includes(r.activity.status) ? 0 : 1 }))
+        .sort((a, b) =>
+          args.p_sort === 'popular'
+            ? a.rank_group - b.rank_group ||
+              (b.rank_group === 0 ? (b.activity?.rank_primary ?? 0) - (a.activity?.rank_primary ?? 0) : 0) ||
+              (b.rank_group === 0 ? (b.activity?.rank_secondary ?? 0) - (a.activity?.rank_secondary ?? 0) : 0) ||
+              (args.p_mode === 'takeout' ? Number(a.takeout !== 'yes') - Number(b.takeout !== 'yes') : 0) ||
+              a.distance_m - b.distance_m
+            : a.distance_m - b.distance_m,
+        );
       return { data, error: null };
     },
   });
@@ -130,9 +142,9 @@ describe('실제 DB 모드 — 소비자 화면', () => {
     render(<App />);
     await user.click(screen.getByRole('radio', { name: '300m' }));
     await waitFor(() => expect(names()).toHaveLength(3));
-    expect(screen.getByText('주문 활발도 순 정렬은 준비 중이에요 · 가까운 순으로 보여드려요')).toBeInTheDocument();
+    expect(screen.getByText('실시간 주문정보 준비 중 · 거리순으로 보여드려요')).toBeInTheDocument();
     expect(screen.getAllByText('주문정보 없음')).toHaveLength(3);
-    expect(document.body.textContent).not.toContain('실시간');
+    expect(document.querySelector('ol.list')!.textContent).not.toContain('실시간');
     expect(screen.queryByText(/주문 0건/)).not.toBeInTheDocument();
     const card = screen.getByRole('button', { name: /오십미터 백반/ });
     expect(card).toHaveTextContent('김치찌개9,000원');
@@ -286,68 +298,163 @@ describe('관리자 테스트 위치 — 소비자 화면', () => {
   });
 });
 
-describe('5단계 — 주문 활발도 표시 (정렬은 바꾸지 않음)', () => {
+describe('6단계 — 지금 주문 많은 순 (서버 순위)', () => {
   const act = (over: Partial<NonNullable<DbSearchRow['activity']>> = {}): NonNullable<DbSearchRow['activity']> => ({
     scope: 'public',
+    status: 'active',
     as_of: '2026-10-19T03:40:00Z',
+    primary_minutes: 10,
+    secondary_minutes: 30,
+    rank_primary: 0,
+    rank_secondary: 12,
     windows: { '30m': 12, '60m': 25 },
-    by_provider: null,
-    top_menu: null,
+    providers: [],
+    top_menus: [],
     ...over,
   });
 
-  it('공개 집계가 있는 매장만 활발도를 보여주고 순서는 거리순 그대로', async () => {
-    h.rows[1] = { ...h.rows[1], activity: act() };
+  it('기본은 지금 주문 많은 순: 주문 데이터 매장이 먼저, 나머지는 따로 거리순 · 거리순으로 바꿀 수 있음', async () => {
+    h.rows[1] = { ...h.rows[1], activity: act({ rank_primary: 6, windows: { '10m': 6, '30m': 12 } }) }; // 150m
+    h.rows[2] = { ...h.rows[2], activity: act({ rank_primary: 9, windows: { '10m': 9 } }) }; // 250m
+    h.rows[3] = { ...h.rows[3], activity: act({ status: 'delayed', rank_primary: 0, rank_secondary: 0, windows: {} }) }; // 350m
     gpsAt(STATIONS.seolleung.point);
     const user = userEvent.setup();
     render(<App />);
+    expect(screen.getByRole('radio', { name: '지금 주문 많은 순' })).toHaveAttribute('aria-checked', 'true');
     await user.click(screen.getByRole('radio', { name: '300m' }));
-    await waitFor(() => expect(names()).toEqual(['오십미터 백반', '백오십 국수', '이백오십 중식당']));
-    expect(screen.getByRole('button', { name: /백오십 국수/ })).toHaveTextContent('📈 최근 30분 홀 주문 활발 · 오후 12:40 기준');
+    await waitFor(() => expect(names()).toEqual(['이백오십 중식당', '백오십 국수', '오십미터 백반']));
+    expect(h.rpc).toHaveBeenLastCalledWith('search_restaurants', expect.objectContaining({ p_sort: 'popular', p_radius_m: 300 }));
+    expect(screen.getByText('주문정보가 없거나 갱신이 늦은 매장 · 거리순')).toBeInTheDocument();
+    expect(screen.queryByText('실시간 주문정보 준비 중 · 거리순으로 보여드려요')).not.toBeInTheDocument();
+    const top = screen.getByRole('button', { name: /이백오십 중식당/ });
+    expect(top).toHaveTextContent('📈 최근 10분 홀 주문 있음 · 오후 12:40 기준');
     expect(screen.getByRole('button', { name: /오십미터 백반/ })).toHaveTextContent('주문정보 없음');
-    expect(document.body.textContent).not.toMatch(/실시간|손님 수 \d/);
-    expect(screen.queryByText(/12건/)).not.toBeInTheDocument(); // 정확한 건수는 공개하지 않음
+    expect(screen.queryByText(/9건|12건/)).not.toBeInTheDocument(); // 정확한 건수는 공개하지 않음
 
-    await user.click(screen.getByRole('button', { name: /백오십 국수/ }));
-    const d = screen.getByRole('dialog', { name: /상세정보/ });
-    expect(d).toHaveTextContent('최근 30분 홀 주문 활발 · 최근 60분 홀 주문 매우 활발');
-    expect(d).toHaveTextContent('매장 안 손님 수나 대기시간이 아니에요');
+    await user.click(screen.getByRole('radio', { name: '거리순' }));
+    await waitFor(() => expect(names()).toEqual(['오십미터 백반', '백오십 국수', '이백오십 중식당']));
+    expect(h.rpc).toHaveBeenLastCalledWith('search_restaurants', expect.objectContaining({ p_sort: 'distance' }));
+    expect(screen.queryByText('주문정보가 없거나 갱신이 늦은 매장 · 거리순')).not.toBeInTheDocument();
   });
 
-  it('배달: 인기메뉴와 배달 가격, 배민·쿠팡이츠 제공처 구분', async () => {
+  it('상태 구분: 최근 주문 확인(소량) · 최근 주문 없음 · 데이터 갱신 지연 · 주문정보 없음', async () => {
+    h.rows = [
+      row('소량', 30, 0, STATIONS.seolleung.point, { activity: act({ rank_secondary: 0, windows: {} }) }),
+      row('없음', 40, 0, STATIONS.seolleung.point, { activity: act({ status: 'none_recent', rank_secondary: 0, windows: {} }) }),
+      row('지연', 50, 0, STATIONS.seolleung.point, { activity: act({ status: 'delayed', rank_secondary: 0, windows: {} }) }),
+      row('미연동', 60, 0),
+    ];
+    gpsAt(STATIONS.seolleung.point);
+    render(<App />);
+    await waitFor(() => expect(names()).toEqual(['소량', '없음', '지연', '미연동']));
+    expect(screen.getByRole('button', { name: /소량/ })).toHaveTextContent('최근 홀 주문 확인 · 오후 12:40 기준');
+    expect(screen.getByRole('button', { name: /^2/ })).toHaveTextContent('최근 30분 홀 주문 없음');
+    expect(screen.getByRole('button', { name: /지연/ })).toHaveTextContent('데이터 갱신 지연 · 오후 12:40 기준');
+    expect(screen.getByRole('button', { name: /지연/ })).not.toHaveTextContent('📈');
+    expect(screen.getByRole('button', { name: /미연동/ })).toHaveTextContent('주문정보 없음');
+  });
+
+  it('상세: 채널별 인기메뉴 순위와 가격, 홀·배달 가격 따로', async () => {
+    const menus = [
+      { id: 'sig', name: '돼지불백', is_signature: true, price_dine_in: 9000, price_delivery: 10000, price_takeout: 8500, price_verified_at: null },
+      { id: 'hot', name: '고추장불백', is_signature: false, price_dine_in: 9500, price_delivery: 10500, price_takeout: 9000, price_verified_at: null },
+    ];
+    h.rows = [
+      row('불백집', 40, 0, STATIONS.seolleung.point, {
+        menus,
+        activity: act({ top_menus: [{ menu_id: 'hot', name: '고추장불백' }, { menu_id: 'sig', name: '돼지불백' }] }),
+      }),
+      row('기록부족', 60, 0, STATIONS.seolleung.point, { menus, activity: act({ top_menus: [] }) }),
+    ];
+    gpsAt(STATIONS.seolleung.point);
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(names()).toHaveLength(2));
+    await user.click(screen.getByRole('button', { name: /불백집/ }));
+    const d = screen.getByRole('dialog', { name: /불백집 상세정보/ });
+    const pop = within(d).getByRole('region', { name: '인기메뉴' });
+    expect(pop).toHaveTextContent('오늘 홀 인기메뉴');
+    expect(pop).toHaveTextContent('1고추장불백9,500원2돼지불백9,000원');
+    expect(within(d).getByRole('region', { name: '대표메뉴' })).toHaveTextContent('돼지불백배달 10,000원 · 포장 8,500원9,000원');
+    await user.click(within(d).getByRole('button', { name: '목록으로 돌아가기' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /기록부족/ }));
+    expect(within(screen.getByRole('dialog', { name: /기록부족 상세정보/ })).queryByRole('region', { name: '인기메뉴' })).not.toBeInTheDocument();
+  });
+
+  it('배달: 배달 가능 표시, 배달 인기메뉴·가격, 제공처 이름만, 확인된 배달비·시간과 승인된 링크만', async () => {
+    const menus = [
+      { id: 'sig', name: '돼지불백', is_signature: true, price_dine_in: 9000, price_delivery: 10000, price_takeout: null, price_verified_at: null },
+      { id: 'hot', name: '고추장불백', is_signature: false, price_dine_in: 9500, price_delivery: 10500, price_takeout: null, price_verified_at: null },
+    ];
     h.rows = [
       row('배달 불백', 120, 0, STATIONS.seolleung.point, {
         delivery: 'yes',
         delivery_radius_m: 2000,
-        menus: [
-          { id: 'sig', name: '돼지불백', is_signature: true, price_dine_in: 9000, price_delivery: 10000, price_takeout: null, price_verified_at: null },
-          { id: 'hot', name: '고추장불백', is_signature: false, price_dine_in: 9500, price_delivery: 10500, price_takeout: null, price_verified_at: null },
-        ],
-        activity: act({
-          windows: { '10m': 6 },
-          by_provider: { baemin: 4, coupangeats: 2 },
-          top_menu: { menu_id: 'hot', name: '고추장불백', quantity: 9 },
-        }),
+        menus,
+        delivery_fee_krw: 2500,
+        delivery_eta_minutes: 30,
+        baemin_order_url: 'https://baemin.example/store/1',
+        coupangeats_order_url: null,
+        activity: act({ windows: { '10m': 6 }, providers: ['baemin', 'coupangeats'], top_menus: [{ menu_id: 'hot', name: '고추장불백' }] }),
       }),
+      row('확인안됨', 200, 0, STATIONS.seolleung.point, { delivery: 'yes', delivery_radius_m: 2000, menus }),
     ];
     gpsAt(STATIONS.seolleung.point);
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole('tab', { name: /배달/ }));
-    await waitFor(() => expect(names()).toEqual(['배달 불백']));
+    await waitFor(() => expect(names()).toEqual(['배달 불백', '확인안됨']));
     const card = screen.getByRole('button', { name: /배달 불백/ });
     expect(card).toHaveTextContent('인기고추장불백10,500원');
+    expect(card).toHaveTextContent('배달 30분 · 배달비 2,500원');
+    expect(card).toHaveTextContent('배달 가능');
     expect(card).toHaveTextContent('최근 10분 배달 주문 있음');
+    const other = screen.getByRole('button', { name: /확인안됨/ });
+    expect(other).not.toHaveTextContent(/배달비|\d+분/); // 확인되지 않은 배달비·시간은 만들지 않음
     await user.click(card);
-    const d = screen.getByRole('dialog', { name: /상세정보/ });
-    expect(d).toHaveTextContent('배달 인기메뉴: 고추장불백');
+    const d = screen.getByRole('dialog', { name: /배달 불백 상세정보/ });
     expect(d).toHaveTextContent('배민·쿠팡이츠 주문 기준');
-    expect(d).not.toHaveTextContent(/배민 4|쿠팡이츠 2/);
-    // 배달비·예상 배달시간 정보가 없으면 표시하지 않는다
-    expect(d).not.toHaveTextContent(/배달비|약 \d+분/);
+    expect(within(d).getByRole('link', { name: '배민에서 주문' })).toHaveAttribute('href', 'https://baemin.example/store/1');
+    expect(within(d).queryByRole('link', { name: '쿠팡이츠에서 주문' })).not.toBeInTheDocument();
   });
 
-  it('일반 화면은 테스트 집계를 요청하지 않고, 관리자 테스트 모드만 요청하며 “테스트 데이터”로 표시', async () => {
+  it('60초마다 자동 새로고침: 화면이 보일 때만, 검색조건·정렬·열어 둔 상세화면 유지', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      h.rows[0] = { ...h.rows[0], activity: act({ rank_primary: 5 }) };
+      gpsAt(STATIONS.seolleung.point);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<App />);
+      await user.click(screen.getByRole('radio', { name: '200m' }));
+      await user.click(screen.getByRole('radio', { name: '거리순' }));
+      await waitFor(() => expect(names()).toEqual(['오십미터 백반', '백오십 국수']));
+      await user.click(screen.getByRole('button', { name: /오십미터 백반/ }));
+      const calls = () => h.rpc.mock.calls.filter((c) => c[0] === 'search_restaurants').length;
+      const before = calls();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      await waitFor(() => expect(calls()).toBe(before + 1));
+      expect(h.rpc).toHaveBeenLastCalledWith('search_restaurants', expect.objectContaining({ p_radius_m: 200, p_sort: 'distance' }));
+      expect(screen.getByRole('dialog', { name: /오십미터 백반 상세정보/ })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: '거리순' })).toHaveAttribute('aria-checked', 'true');
+
+      // 화면이 숨겨지면 조회하지 않음
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(180_000);
+      expect(calls()).toBe(before + 1);
+      // 다시 보이면 바로 한 번
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await waitFor(() => expect(calls()).toBe(before + 2));
+    } finally {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      vi.useRealTimers();
+    }
+  });
+
+  it('관리자 테스트 모드만 테스트 순위를 요청하고 “테스트 데이터”로 표시', async () => {
     gpsAt(STATIONS.seolleung.point);
     const { unmount } = render(<App />);
     await waitFor(() => expect(names()).toEqual(['오십미터 백반']));
@@ -357,7 +464,7 @@ describe('5단계 — 주문 활발도 표시 (정렬은 바꾸지 않음)', () 
     h.isAdmin = true;
     h.hasSession = true;
     sessionStorage.setItem('mwomeok.testLocation', 'seolleung');
-    h.rows[0] = { ...h.rows[0], activity: act({ scope: 'test', windows: { '10m': 30 } }) };
+    h.rows[0] = { ...h.rows[0], activity: act({ scope: 'test', windows: { '10m': 30 }, rank_primary: 30 }) };
     render(<App />);
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('테스트 모드'));
     await waitFor(() => expect(h.rpc).toHaveBeenLastCalledWith('search_restaurants', expect.objectContaining({ p_include_test: true })));

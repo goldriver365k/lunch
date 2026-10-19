@@ -27,24 +27,37 @@ export interface DbSearchRow {
     price_takeout: number | null;
     price_verified_at: string | null;
   }[];
-  /** 주문 활발도 (5단계) — 공개 기준을 넘는 경우만 */
+  /** 주문 활발도 — 연동이 없으면 null */
   activity?: {
     scope: 'public' | 'test';
+    status: OrderActivity['status'];
     as_of: string;
-    windows: Partial<Record<'10m' | '30m' | '60m' | 'lunch', number>>;
-    by_provider: OrderActivity['byProvider'];
-    top_menu: { menu_id: string; name: string; quantity: number } | null;
+    primary_minutes: number;
+    secondary_minutes: number;
+    rank_primary: number;
+    rank_secondary: number;
+    windows: OrderActivity['windows'];
+    providers: OrderActivity['providers'];
+    top_menus: { menu_id: string; name: string }[];
   } | null;
+  delivery_fee_krw?: number | null;
+  delivery_eta_minutes?: number | null;
+  baemin_order_url?: string | null;
+  coupangeats_order_url?: string | null;
+  rank_group?: number;
 }
 
 function mapActivity(a: DbSearchRow['activity']): OrderActivity | null {
-  if (!a || Object.keys(a.windows ?? {}).length === 0) return null;
+  if (!a) return null;
   return {
     scope: a.scope,
+    status: a.status,
     asOf: a.as_of,
-    windows: a.windows,
-    byProvider: a.by_provider ?? null,
-    topMenu: a.top_menu ? { menuId: a.top_menu.menu_id, name: a.top_menu.name, quantity: a.top_menu.quantity } : null,
+    primaryMinutes: a.primary_minutes,
+    secondaryMinutes: a.secondary_minutes,
+    windows: a.windows ?? {},
+    providers: a.providers ?? [],
+    topMenus: (a.top_menus ?? []).map((m) => ({ menuId: m.menu_id, name: m.name })),
   };
 }
 
@@ -52,7 +65,11 @@ function toCategory(raw: string): Category {
   return (CATEGORIES as string[]).includes(raw) ? (raw as Category) : '기타';
 }
 
-/** DB 행 → 앱 공통 음식점 형식. 메뉴 가격이 없으면 null(가격정보 없음)로 둔다. */
+/** https 링크만 쓴다 (DB에서도 막지만 한 번 더) */
+function safeUrl(u: string | null | undefined): string | undefined {
+  return u && /^https:\/\//.test(u) ? u : undefined;
+}
+
 export function mapDbRow(row: DbSearchRow): RestaurantResult {
   const channelStatus: Record<Mode, ChannelStatus> = {
     walk: row.dine_in,
@@ -81,6 +98,11 @@ export function mapDbRow(row: DbSearchRow): RestaurantResult {
     dataSource: { kind: 'db', realtime: false, updatedAt: row.updated_at },
     lastVerifiedAt: row.last_verified_at,
     activity: mapActivity(row.activity),
+    // 확인된 값만 (없으면 표시하지 않는다 — 임의로 만들지 않음)
+    deliveryFee: row.delivery_fee_krw ?? undefined,
+    deliveryMinutes: row.delivery_eta_minutes ?? undefined,
+    orderLinks: { baemin: safeUrl(row.baemin_order_url), coupangeats: safeUrl(row.coupangeats_order_url) },
+    rankGroup: row.rank_group,
     distanceM: row.distance_m,
   };
 }
@@ -93,6 +115,8 @@ export interface DbSearchParams {
   keyword: string;
   /** 관리자 테스트 모드: 테스트 주문 집계를 보여준다 (서버에서 관리자일 때만 적용) */
   includeTest?: boolean;
+  /** 서버 정렬: 지금 주문 많은 순(popular) / 거리순(distance) */
+  sort?: 'popular' | 'distance';
 }
 
 /** 서버(PostGIS)에서 반경 검색 — 전체 음식점을 내려받지 않는다 */
@@ -105,9 +129,17 @@ export async function searchRestaurantsDb(client: SupabaseClient, p: DbSearchPar
     p_category: p.category,
     p_keyword: p.keyword.trim() || null,
     ...(p.includeTest ? { p_include_test: true } : {}),
+    p_sort: p.sort ?? 'popular',
   });
   if (error) throw error;
   return (data as DbSearchRow[]).map(mapDbRow);
+}
+
+/** 화면 새로고침 간격(초) — 관리자 설정, 실패하면 60초 */
+export async function fetchRefreshIntervalSeconds(client: SupabaseClient): Promise<number> {
+  const { data, error } = await client.rpc('public_app_settings');
+  const n = Number((data as { refresh_interval_seconds?: number } | null)?.refresh_interval_seconds);
+  return !error && Number.isFinite(n) && n >= 15 ? n : 60;
 }
 
 /** 서버에서 관리자 여부 확인 (admin_users + 로그인 세션) */

@@ -162,6 +162,25 @@ export function ConnectionsAdmin({ client, test }: { client: SupabaseClient; tes
                     </select>
                   </label>
                 )}
+                {c.ingest_mode !== 'webhook' && (
+                  <label>
+                    갱신 지연 기준
+                    <select
+                      value={c.freshness_minutes ?? ''}
+                      aria-label="갱신 지연 기준"
+                      onChange={(e) =>
+                        patch(c, { freshness_minutes: e.target.value ? Number(e.target.value) : null }, '갱신 지연 기준을 바꿨어요.')
+                      }
+                    >
+                      <option value="">기본(설정값)</option>
+                      {[15, 30, 60, 120, 1440].map((m) => (
+                        <option key={m} value={m}>
+                          {m === 1440 ? '하루' : `${m}분`} 넘게 수집 없으면
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 {c.status === 'paused' ? (
                   <button type="button" className="admin-btn" onClick={() => patch(c, { status: 'active' }, '재개했어요.')}>
                     재개

@@ -44,6 +44,10 @@ const EMPTY: RestaurantEditable = {
   delivery: 'unknown',
   takeout: 'unknown',
   delivery_radius_m: null,
+  delivery_fee_krw: null,
+  delivery_eta_minutes: null,
+  baemin_order_url: null,
+  coupangeats_order_url: null,
   verify_status: 'unverified',
   last_verified_at: null,
   is_public: false,
@@ -63,6 +67,10 @@ function editableOf(r: AdminRestaurant): RestaurantEditable {
     delivery: r.delivery,
     takeout: r.takeout,
     delivery_radius_m: r.delivery_radius_m,
+    delivery_fee_krw: r.delivery_fee_krw ?? null,
+    delivery_eta_minutes: r.delivery_eta_minutes ?? null,
+    baemin_order_url: r.baemin_order_url ?? null,
+    coupangeats_order_url: r.coupangeats_order_url ?? null,
     verify_status: r.verify_status,
     last_verified_at: r.last_verified_at,
     is_public: r.is_public,
@@ -274,6 +282,11 @@ function RestaurantForm({
     if (!v.name.trim()) return setMessage('음식점명을 입력해 주세요.');
     if (Number.isNaN(lat) || Number.isNaN(lng)) return setMessage('위도·경도는 숫자로 입력해 주세요.');
     if (v.is_public && coord !== 'valid') return setMessage('좌표가 정상이어야 앱에 공개할 수 있어요.');
+    const baemin = v.baemin_order_url?.trim() || null;
+    const coupang = v.coupangeats_order_url?.trim() || null;
+    if ([baemin, coupang].some((u) => u && !/^https:\/\/\S+$/.test(u))) return setMessage('배달앱 주문 링크는 https:// 주소만 넣을 수 있어요.');
+    if (v.delivery_eta_minutes !== null && (v.delivery_eta_minutes < 1 || v.delivery_eta_minutes > 240))
+      return setMessage('배달 예상시간은 1~240분이에요.');
     setBusy(true);
     setMessage(null);
     try {
@@ -284,6 +297,8 @@ function RestaurantForm({
         lot_address: v.lot_address?.trim() || null,
         lat,
         lng,
+        baemin_order_url: baemin,
+        coupangeats_order_url: coupang,
       });
       setSaved(row);
       setMessage('저장했어요. 소비자 앱 검색에 바로 반영돼요.');
@@ -398,6 +413,32 @@ function RestaurantForm({
             value={v.delivery_radius_m ?? ''}
             onChange={(e) => set('delivery_radius_m', e.target.value ? Math.max(1, Math.round(Number(e.target.value))) : null)}
           />
+        </label>
+        <div className="admin-row">
+          <label>
+            배달비(원) — 확인된 경우만
+            <input
+              inputMode="numeric"
+              value={v.delivery_fee_krw ?? ''}
+              onChange={(e) => set('delivery_fee_krw', e.target.value ? Math.max(0, Math.round(Number(e.target.value) || 0)) : null)}
+            />
+          </label>
+          <label>
+            배달 예상시간(분) — 확인된 경우만
+            <input
+              inputMode="numeric"
+              value={v.delivery_eta_minutes ?? ''}
+              onChange={(e) => set('delivery_eta_minutes', e.target.value ? Math.round(Number(e.target.value) || 0) : null)}
+            />
+          </label>
+        </div>
+        <label>
+          배민 주문 링크 — 매장·배달앱 승인을 받은 경우만 (https://)
+          <input type="url" value={v.baemin_order_url ?? ''} onChange={(e) => set('baemin_order_url', e.target.value || null)} />
+        </label>
+        <label>
+          쿠팡이츠 주문 링크 — 매장·배달앱 승인을 받은 경우만 (https://)
+          <input type="url" value={v.coupangeats_order_url ?? ''} onChange={(e) => set('coupangeats_order_url', e.target.value || null)} />
         </label>
         <div className="admin-row">
           <label>

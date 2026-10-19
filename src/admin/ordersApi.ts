@@ -48,6 +48,8 @@ export interface OrderConnection {
   last_success_at: string | null;
   last_error: string | null;
   last_error_at: string | null;
+  /** 이 연결의 갱신 지연 판단 기준(분) — null이면 설정의 기본값. 수집 주기가 긴 제공처용 */
+  freshness_minutes: number | null;
   restaurants?: { name: string } | null;
 }
 
@@ -105,6 +107,50 @@ export interface OrderSettings {
   min_public_count: number;
   monthly_budget_krw: number;
   stale_after_minutes: number;
+  /** 소비자 화면 자동 새로고침 간격(초) — 주문 수집 주기와 별개 */
+  refresh_interval_seconds: number;
+  /** 순위 1차 집계시간(분) */
+  rank_primary_minutes: number;
+  /** 순위 2차 집계시간(분) — 1차보다 길어야 함 */
+  rank_secondary_minutes: number;
+}
+
+const SETTINGS_COLUMNS =
+  'min_public_count, monthly_budget_krw, stale_after_minutes, refresh_interval_seconds, rank_primary_minutes, rank_secondary_minutes';
+
+/** 관리자 실시간 인기매장 한 줄 — 정확한 건수 (최소 공개 건수 미적용) */
+export interface PopularRow {
+  restaurant_id: string;
+  name: string;
+  region_id: string | null;
+  is_public: boolean;
+  /** none = 주문정보 없음(연동 없음) */
+  freshness: 'fresh' | 'delayed' | 'none';
+  as_of: string | null;
+  c_primary: number;
+  c_secondary: number;
+  c10: number;
+  c30: number;
+  c60: number;
+  c_lunch: number;
+  c_today: number;
+  by_provider: Partial<Record<OrderProvider, number>>;
+  top_menus: { menu_id: string; name: string; quantity: number }[];
+  last_order_at: string | null;
+  connections: { provider: OrderProvider; status: ConnectionStatus; public_allowed: boolean; last_success_at: string | null }[];
+  /** 소비자 순위에 반영될 수 있는지 (실제·공개 허용·최신·공개 매장) */
+  public_rank_allowed: boolean;
+}
+
+export async function fetchPopularRestaurants(
+  client: SupabaseClient,
+  regionId: string | null,
+  channel: 'HALL' | 'DELIVERY' | 'PICKUP',
+  test: boolean,
+): Promise<PopularRow[]> {
+  return check(
+    await client.rpc('admin_popular_restaurants', { p_region_id: regionId, p_channel: channel, p_test: test }),
+  ) as PopularRow[];
 }
 
 function check<T>(res: { data: T; error: { message: string } | null }): T {
@@ -276,7 +322,7 @@ export async function fetchAggregates(client: SupabaseClient, restaurantId: stri
 
 export async function fetchOrderSettings(client: SupabaseClient): Promise<OrderSettings> {
   return check(
-    await client.from('order_settings').select('min_public_count, monthly_budget_krw, stale_after_minutes').single(),
+    await client.from('order_settings').select(SETTINGS_COLUMNS).single(),
   ) as OrderSettings;
 }
 

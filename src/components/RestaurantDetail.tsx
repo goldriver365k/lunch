@@ -3,7 +3,7 @@ import type { Mode, RestaurantResult } from '../types';
 import { CHANNEL_LABEL } from '../lib/channels';
 import { MAP_PROVIDER_LABEL, routeDestinationOf, type MapProvider, type RoutePlace } from '../lib/mapLinks';
 import { formatDistance, formatMenuPrice, formatPrice, menusForChannel, ordersFor, walkMinutes } from '../lib/restaurants';
-import { activityWindows, asOfTime, providerNames } from '../lib/activity';
+import { activitySummary, activityWindows, asOfTime, popularMenus, providerNames } from '../lib/activity';
 
 interface Props {
   restaurant: RestaurantResult;
@@ -32,6 +32,13 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
   const dest = routeDestinationOf(r);
   const canFindStore = mode !== 'delivery';
   const orders = ordersFor(r, mode);
+  const popular = popularMenus(r, mode);
+  /** 다른 채널 가격 — 홀과 배달 가격을 따로 보여준다 */
+  const otherPrices = (menuPrices: Record<string, number | null | undefined>) =>
+    (['walk', 'delivery', 'takeout'] as Mode[])
+      .filter((m) => m !== mode && menuPrices[m] != null)
+      .map((m) => `${CHANNEL_LABEL[m]} ${formatMenuPrice(menuPrices[m])}`)
+      .join(' · ');
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -75,7 +82,10 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
             <ul className="signature-list">
               {head.map(({ menu, price }) => (
                 <li key={menu.id}>
-                  <span className="signature-name">{menu.name}</span>
+                  <span className="signature-name">
+                    {menu.name}
+                    {otherPrices(menu.prices) && <small className="other-prices">{otherPrices(menu.prices)}</small>}
+                  </span>
                   <span className={price === null ? 'signature-price muted' : 'signature-price'}>
                     {formatMenuPrice(price)}
                   </span>
@@ -84,6 +94,24 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
             </ul>
           )}
         </section>
+
+        {popular.length > 0 && (
+          <section className="popular" aria-label="인기메뉴">
+            <p className="menu-title">
+              오늘 {channel} 인기메뉴 <span className="muted">판매 수량 순</span>
+              {r.activity?.scope === 'test' && <span className="test-tag">테스트 데이터</span>}
+            </p>
+            <ol className="popular-list">
+              {popular.map(({ menu, price }, i) => (
+                <li key={menu.id}>
+                  <span className="popular-rank">{i + 1}</span>
+                  <span className="popular-name">{menu.name}</span>
+                  <span className={price === null ? 'price muted' : 'price'}>{formatMenuPrice(price)}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         <dl className="detail-facts">
           <div>
@@ -101,9 +129,14 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
             <div>
               <dt>배달</dt>
               <dd>
-                {r.deliveryMinutes !== undefined
-                  ? `약 ${r.deliveryMinutes}분 · 배달비 ${formatPrice(r.deliveryFee ?? 0)}`
-                  : `배달 가능 거리 ${formatDistance(r.deliveryRadiusM ?? 0)} (확인됨)`}
+                {r.dataSource.kind === 'db' && <strong className="ok-tag">배달 가능</strong>}
+                {/* 배달비·예상시간은 확인된 값이 있을 때만 */}
+                {[
+                  r.deliveryMinutes !== undefined ? `예상 약 ${r.deliveryMinutes}분` : null,
+                  r.deliveryFee !== undefined ? `배달비 ${formatPrice(r.deliveryFee)}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || `배달 가능 거리 ${formatDistance(r.deliveryRadiusM ?? 0)} (확인됨)`}
               </dd>
             </div>
           )}
@@ -124,16 +157,12 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
             <dd>
               {r.activity ? (
                 <>
-                  {activityWindows(r.activity).map((w) => `${w.label} ${channel} 주문 ${w.level}`).join(' · ')}
+                  {activityWindows(r.activity).length > 0
+                    ? activityWindows(r.activity).map((w) => `${w.label} ${channel} 주문 ${w.level}`).join(' · ')
+                    : activitySummary(r.activity, mode)}
                   {r.activity.scope === 'test' && <span className="test-tag">테스트 데이터</span>}
                   <br />
-                  {r.activity.topMenu && (
-                    <>
-                      {channel} 인기메뉴: <strong>{r.activity.topMenu.name}</strong>
-                      <br />
-                    </>
-                  )}
-                  {mode === 'delivery' && providerNames(r.activity).length > 0 && (
+                  {mode === 'delivery' && r.activity.status !== 'delayed' && providerNames(r.activity).length > 0 && (
                     <>
                       {providerNames(r.activity).join('·')} 주문 기준
                       <br />
@@ -141,6 +170,7 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
                   )}
                   <span className="muted">
                     {asOfTime(r.activity.asOf)} 기준 주문 집계 · 매장 안 손님 수나 대기시간이 아니에요
+                    {r.activity.status === 'delayed' && ' · 최근 데이터가 들어오지 않아 순위에 반영하지 않았어요'}
                   </span>
                 </>
               ) : orders === undefined ? (
@@ -180,7 +210,23 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
           </section>
         )}
 
-        {mode === 'delivery' && <p className="detail-note">확인된 배달앱 링크가 없어 배달앱 연결은 제공하지 않아요.</p>}
+        {mode === 'delivery' &&
+          (r.orderLinks?.baemin || r.orderLinks?.coupangeats ? (
+            <div className="order-links" aria-label="배달앱에서 주문">
+              {r.orderLinks.baemin && (
+                <a className="order-link" href={r.orderLinks.baemin} target="_blank" rel="noopener noreferrer">
+                  배민에서 주문
+                </a>
+              )}
+              {r.orderLinks.coupangeats && (
+                <a className="order-link" href={r.orderLinks.coupangeats} target="_blank" rel="noopener noreferrer">
+                  쿠팡이츠에서 주문
+                </a>
+              )}
+            </div>
+          ) : (
+            <p className="detail-note">확인된 배달앱 링크가 없어 배달앱 연결은 제공하지 않아요.</p>
+          ))}
 
         {canFindStore && (
           <div className="find-store">

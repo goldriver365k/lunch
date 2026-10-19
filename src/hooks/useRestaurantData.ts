@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Category, GeoPoint, Mode, Radius, RestaurantResult, SortKey } from '../types';
 import { MOCK_UPDATED_AT, mockDatasetFor } from '../data/mockRestaurants';
-import { searchRestaurantsDb } from '../lib/db/restaurantsApi';
-import { applyLiveOrders, hasOrderData, queryRestaurants, sortRestaurants, withDistance } from '../lib/restaurants';
+import { fetchRefreshIntervalSeconds, searchRestaurantsDb } from '../lib/db/restaurantsApi';
+import { applyLiveOrders, hasOrderData, queryRestaurants, withDistance } from '../lib/restaurants';
 import { supabase } from '../lib/supabase';
+
+/** 화면 새로고침 기본 간격(초) — 관리자 설정을 받기 전까지 */
+const DEFAULT_REFRESH_SEC = 60;
 
 /** 가상 실시간 주문 갱신 주기 (ms) — 가상 데이터에서만 */
 const LIVE_TICK_MS = 15000;
@@ -60,17 +63,69 @@ export function useRestaurantData(q: RestaurantQueryInput): RestaurantData {
   );
 
   // ── 실제 DB ──
+  // 순위는 서버가 계산한다. 정렬을 바꾸면 서버에 다시 요청하고, 받은 순서를 그대로 쓴다.
   const [dbState, setDbState] = useState<{ key: string; rows: RestaurantResult[]; error: string | null } | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const dbKey = origin ? JSON.stringify([origin.lat, origin.lng, mode, radius, category, keyword.trim(), includeTest, attempt]) : '';
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [refreshSec, setRefreshSec] = useState(DEFAULT_REFRESH_SEC);
+  const dbKey = origin
+    ? JSON.stringify([origin.lat, origin.lng, mode, radius, category, keyword.trim(), includeTest, sort, attempt])
+    : '';
+  const hasOrigin = origin !== null;
+
+  useEffect(() => {
+    if (db) fetchRefreshIntervalSeconds(db).then(setRefreshSec);
+  }, [db]);
+
+  // 화면 자동 새로고침 — 주문 수집 주기와 별개. 화면이 보일 때만 돌고, 다시 보이면 바로 한 번 확인한다.
+  useEffect(() => {
+    if (!db || !hasOrigin) return;
+    let id: ReturnType<typeof setInterval> | undefined;
+    const stop = () => {
+      if (id !== undefined) clearInterval(id);
+      id = undefined;
+    };
+    const start = () => {
+      stop();
+      id = setInterval(() => setRefreshTick((t) => t + 1), refreshSec * 1000);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') stop();
+      else {
+        setRefreshTick((t) => t + 1);
+        start();
+      }
+    };
+    if (document.visibilityState !== 'hidden') start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [db, hasOrigin, refreshSec]);
+
   useEffect(() => {
     if (!db || !origin) return;
     let cancelled = false;
     const handle = setTimeout(
       () => {
-        searchRestaurantsDb(db, { origin, mode, radius, category, keyword, includeTest })
-          .then((rows) => !cancelled && setDbState({ key: dbKey, rows, error: null }))
-          .catch(() => !cancelled && setDbState({ key: dbKey, rows: [], error: '음식점 정보를 불러오지 못했어요.' }));
+        searchRestaurantsDb(db, { origin, mode, radius, category, keyword, includeTest, sort })
+          .then((rows) => {
+            if (cancelled) return;
+            // 바뀐 것이 없으면 상태를 그대로 둔다 (새 주문이 생긴 것처럼 다시 그리지 않음)
+            setDbState((prev) =>
+              prev && prev.key === dbKey && !prev.error && JSON.stringify(prev.rows) === JSON.stringify(rows)
+                ? prev
+                : { key: dbKey, rows, error: null },
+            );
+          })
+          .catch(() => {
+            if (cancelled) return;
+            // 자동 새로고침이 실패하면 보던 목록을 그대로 둔다
+            setDbState((prev) =>
+              prev && prev.key === dbKey && !prev.error ? prev : { key: dbKey, rows: [], error: '음식점 정보를 불러오지 못했어요.' },
+            );
+          });
       },
       keyword ? 250 : 0,
     );
@@ -78,15 +133,14 @@ export function useRestaurantData(q: RestaurantQueryInput): RestaurantData {
       cancelled = true;
       clearTimeout(handle);
     };
-    // dbKey가 검색 조건 전체를 담고 있다
+    // dbKey가 검색 조건 전체를, refreshTick이 자동 새로고침을 담고 있다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, dbKey]);
+  }, [db, dbKey, refreshTick]);
 
   const results = useMemo(() => {
     if (!origin) return [];
     if (!db) return queryRestaurants(liveMock, { mode, radius, category, keyword, sort, origin });
-    const rows = dbState?.key === dbKey ? dbState.rows : (dbState?.rows ?? []);
-    return sortRestaurants(rows, sort, mode);
+    return dbState?.key === dbKey ? dbState.rows : (dbState?.rows ?? []);
   }, [db, origin, liveMock, mode, radius, category, keyword, sort, dbState, dbKey]);
 
   const find = (id: string): RestaurantResult | null => {
@@ -101,7 +155,8 @@ export function useRestaurantData(q: RestaurantQueryInput): RestaurantData {
     results,
     loading: !!db && !!origin && dbState?.key !== dbKey,
     error: db && dbState?.key === dbKey ? dbState.error : null,
-    hasOrders: hasOrderData(results, mode),
+    // DB: 주문 데이터로 순위가 매겨진 매장(그룹 0)이 하나라도 있는지
+    hasOrders: db ? results.some((r) => r.rankGroup === 0) : hasOrderData(results, mode),
     find,
     mockAreaName: dataset?.areaName ?? null,
     retry: () => setAttempt((a) => a + 1),
