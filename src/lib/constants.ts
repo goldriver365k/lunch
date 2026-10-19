@@ -27,6 +27,7 @@ export const CATEGORIES: Category[] = [
   '아시안',
   '패스트푸드',
   '카페·디저트',
+  '기타',
 ];
 
 export const SORTS: { key: SortKey; label: string }[] = [

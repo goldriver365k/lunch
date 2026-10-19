@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Mode, RestaurantResult } from '../types';
 import { CHANNEL_LABEL } from '../lib/channels';
 import { MAP_PROVIDER_LABEL, routeDestinationOf, type MapProvider, type RoutePlace } from '../lib/mapLinks';
-import { formatDistance, formatPrice, menusForChannel, ordersFor, walkMinutes } from '../lib/restaurants';
+import { formatDistance, formatMenuPrice, formatPrice, menusForChannel, ordersFor, walkMinutes } from '../lib/restaurants';
 
 interface Props {
   restaurant: RestaurantResult;
@@ -17,7 +17,7 @@ interface Props {
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, onBack, onFindRoute, onKakaoApp, onChangeMap }: Props) {
@@ -30,6 +30,7 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
   const channel = CHANNEL_LABEL[mode];
   const dest = routeDestinationOf(r);
   const canFindStore = mode !== 'delivery';
+  const orders = ordersFor(r, mode);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -55,7 +56,11 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
           <button type="button" className="back-button" onClick={onBack} aria-label="목록으로 돌아가기">
             ‹ 목록
           </button>
-          <span className="mock-badge">가상 매장</span>
+          {r.dataSource.kind === 'mock' ? (
+            <span className="mock-badge">가상 매장</span>
+          ) : (
+            <span className="db-badge">공공데이터·관리자 확인 정보</span>
+          )}
         </header>
 
         <h2 className="detail-name">{r.name}</h2>
@@ -70,7 +75,9 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
               {head.map(({ menu, price }) => (
                 <li key={menu.id}>
                   <span className="signature-name">{menu.name}</span>
-                  <span className="signature-price">{formatPrice(price)}</span>
+                  <span className={price === null ? 'signature-price muted' : 'signature-price'}>
+                    {formatMenuPrice(price)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -93,25 +100,48 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
             <div>
               <dt>배달</dt>
               <dd>
-                약 {r.deliveryMinutes}분 · 배달비 {formatPrice(r.deliveryFee ?? 0)}
+                {r.deliveryMinutes !== undefined
+                  ? `약 ${r.deliveryMinutes}분 · 배달비 ${formatPrice(r.deliveryFee ?? 0)}`
+                  : `배달 가능 거리 ${formatDistance(r.deliveryRadiusM ?? 0)} (확인됨)`}
               </dd>
             </div>
           )}
           {mode === 'takeout' && (
             <div>
               <dt>포장</dt>
-              <dd>준비 약 {r.takeoutMinutes}분</dd>
+              <dd>
+                {r.channelStatus.takeout === 'unknown'
+                  ? '포장 운영 미확인'
+                  : r.takeoutMinutes !== undefined
+                    ? `준비 약 ${r.takeoutMinutes}분`
+                    : '포장 가능'}
+              </dd>
             </div>
           )}
           <div>
             <dt>주문</dt>
             <dd>
-              최근 30분 {channel} 주문 {ordersFor(r, mode)}건{' '}
-              <span className="muted">
-                (가상 · {r.dataSource.realtime ? '실시간' : '실시간 아님'} · {formatTime(r.dataSource.updatedAt)} 기준)
-              </span>
+              {orders === undefined ? (
+                '실시간 주문정보 준비 중'
+              ) : (
+                <>
+                  최근 30분 {channel} 주문 {orders}건{' '}
+                  <span className="muted">
+                    (가상 · {r.dataSource.realtime ? '실시간' : '실시간 아님'} · {formatTime(r.dataSource.updatedAt)} 기준)
+                  </span>
+                </>
+              )}
             </dd>
           </div>
+          {r.dataSource.kind === 'db' && (
+            <div>
+              <dt>확인</dt>
+              <dd>
+                {r.lastVerifiedAt ? `최종 확인 ${r.lastVerifiedAt}` : '현장 확인 전'}
+                <span className="muted"> · 정보 갱신 {formatTime(r.dataSource.updatedAt)}</span>
+              </dd>
+            </div>
+          )}
         </dl>
 
         {rest.length > 0 && (
@@ -121,7 +151,7 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
               {rest.map(({ menu, price }) => (
                 <li key={menu.id}>
                   <span>{menu.name}</span>
-                  <span className="price">{formatPrice(price)}</span>
+                  <span className={price === null ? 'price muted' : 'price'}>{formatMenuPrice(price)}</span>
                 </li>
               ))}
             </ul>

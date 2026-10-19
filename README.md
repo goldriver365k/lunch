@@ -1,10 +1,10 @@
 # 뭐먹 — 지금 다들 뭐 먹어?
 
-내 주변에서 지금 사람들이 많이 먹는 식사를 보여주는 모바일 웹앱 (3단계 프로토타입).
+내 주변에서 지금 사람들이 많이 먹는 식사를 보여주는 모바일 웹앱 (4단계).
 
-> ⚠️ 위치는 브라우저 GPS를 쓰지만, 음식점·좌표·가격·주문 수는 모두 **가상 데이터**입니다.
-> 길찾기는 카카오맵·네이버지도의 공식 URL로 외부 지도를 여는 방식만 쓰며, 지도 SDK·장소검색 API·음식점 DB, POS,
-> 배민·쿠팡이츠, 카드사 데이터, Supabase, 유료 서비스는 연동하지 않았습니다.
+> - **Supabase를 연결하면** 실제 음식점 DB(공공데이터 + 관리자 입력)를 서버에서 반경 검색합니다.
+> - **연결하지 않으면** 기존 가상 데이터(데모)로 동작합니다. 두 데이터는 섞이지 않습니다.
+> - 실시간 주문정보(POS·배민·쿠팡이츠·카드사)는 아직 연동하지 않았습니다. 길찾기는 카카오맵·네이버지도 공식 URL만 쓰며 유료 API는 쓰지 않습니다.
 
 ## 실행
 
@@ -23,7 +23,34 @@ npm run dev        # http://localhost:5173
 | `npm run build` | 타입 검사 + 프로덕션 빌드 (`dist/`) |
 | `npm run preview` | 빌드 결과 미리보기 |
 
-## 기능 (1~3단계)
+## 실제 DB 연결 (Supabase 무료 플랜)
+
+결제 정보 없이 무료 플랜으로 됩니다. 아래는 프로젝트 소유자가 직접 해야 하는 작업입니다.
+
+1. [supabase.com](https://supabase.com)에서 새 프로젝트를 만듭니다 (Free).
+2. **SQL Editor**에서 `supabase/migrations/20261019000000_stage4_restaurants.sql` 내용을 붙여 넣고 실행합니다.
+   PostGIS 확장, 음식점·메뉴 테이블, 공간 인덱스, RLS, 검색·관리자 함수가 만들어집니다. 두 번 실행해도 안전합니다.
+3. **Authentication → Users → Add user**로 관리자 계정(이메일·비밀번호)을 만듭니다.
+   일반 회원가입은 쓰지 않으므로 **Authentication → Sign In / Providers → Email**에서 *Allow new users to sign up*을 끄는 것을 권장합니다.
+4. SQL Editor에서 그 계정을 관리자로 지정합니다.
+   ```sql
+   insert into public.admin_users (user_id) select id from auth.users where email = '관리자 이메일';
+   ```
+5. `.env.example`을 `.env.local`로 복사하고 **Project Settings → API**의 Project URL과 **anon public** 키를 넣은 뒤 `npm run dev`를 다시 실행합니다.
+   **service_role 키는 절대 넣지 마세요** (브라우저 코드에 포함됩니다). 권한은 DB의 RLS와 `is_admin()`이 서버에서 검사합니다.
+6. 공공데이터포털 [전국일반음식점표준데이터](https://www.data.go.kr/data/15096283/standard.do)에서 CSV를 내려받아(로그인 필요)
+   `/admin` → **CSV 업로드**에서 올립니다. 미리보기의 ‘지도에서 보기’로 2~3곳 좌표를 확인한 뒤 승인합니다.
+7. 배포할 때는 `/admin` 경로도 `index.html`로 연결되도록 호스팅의 SPA 리라이트를 설정합니다 (`npm run preview`는 자동).
+
+| 경로 | 내용 |
+| --- | --- |
+| `/` | 소비자 앱 |
+| `/admin` | 관리자 (로그인 + `admin_users` 등록 계정만) — 홈 통계 · 음식점·메뉴 · CSV 업로드 · 테스트 위치 |
+
+DB 마이그레이션은 로컬 PostgreSQL 16 + PostGIS 3에서 시험할 수 있습니다:
+`PGHOST=… PGPORT=… PGUSER=postgres supabase/tests/run_local_db_test.sh`
+
+## 기능 (1~4단계)
 
 - 도보 식사 · 배달 · 포장 3개 탭
 - **GPS 현재 위치** 확인 (Geolocation API). 실패·거부·미지원 시 **선릉·판교·여의도 시범 위치** 선택, GPS 다시 시도
@@ -43,7 +70,16 @@ npm run dev        # http://localhost:5173
   - **가상 매장 좌표는 길찾기에 쓰지 않음** (`coordVerified: false`) → `매장 위치정보를 확인할 수 없습니다`
   - 연결 시험은 하단 **‘길찾기 연결 시험 · 지도 설정’**에서 선릉역·판교역·여의도역으로 (역 중심 근사 좌표)
 
-### 가상 매장 배치
+### 4단계 — 실제 음식점 DB·관리자
+- **위치 검색**: `search_restaurants` RPC가 PostGIS `ST_DWithin` + GiST 공간 인덱스로 서버에서 100·200·300m만 검색 (휴대폰에 전체 데이터를 받지 않음)
+- **주문정보 없음 처리**: 0건으로 보지 않고 ‘실시간 주문정보 준비 중’ + 가까운 순
+- **운영 여부** 확인됨/운영 안 함/미확인 — 배달은 배달 확인 + 배달 가능 거리가 확인된 매장만, 포장은 확인 매장 우선
+- **가격** 미확인은 ‘가격정보 없음’ (DB에 0원 저장 불가)
+- **공공데이터 CSV 업로드**: CP949/UTF-8 자동 인식, 조각 단위 스트리밍, 지역 필터, EPSG:5174→WGS84 변환(PROJ 공식 변환과 0.05m 이내), 관리번호 중복 판별, 폐업·휴업 제외, 좌표 오류·누락 비공개 분류, 미리보기 후 승인, 한 트랜잭션 반영(실패 시 기존 데이터 무변경), 재업로드해도 중복·메뉴 손실 없음
+- **관리자 테스트 위치**: 실제 GPS / 선릉역 / 역삼역 / 판교역 / 여의도역 — 소비자 화면 상단 ‘테스트 모드 — ○○역 기준’, 서버에서 관리자 확인 시에만 켜짐, 매장찾기 출발지로 쓰지 않음
+- **GPS 정확도**가 ±100m보다 나쁘면 재확인 안내
+
+### 가상 매장 배치 (DB 미연결 데모)
 - 현재 위치가 시범 지역 중심 500m 이내면 그 지역의 가상 매장을 사용
 - 그 밖이면 현재 위치 주변에 같은 가상 매장 템플릿을 배치 (화면에 안내 문구 표시)
 
@@ -64,5 +100,15 @@ src/
   hooks/useRouteFinder.ts    매장찾기 흐름 (지도 선택 → 출발지 확인 → 외부 지도 열기)
   components/RestaurantDetail.tsx, RouteSheets.tsx, BottomSheet.tsx
   data/routeTestPlaces.ts    길찾기 연결 시험 목적지 (역)
+  data/stations.ts           선릉·역삼·판교·여의도역 좌표 (위키백과·위키데이터 대조)
+  lib/supabase.ts            Supabase 클라이언트 (환경변수 없으면 null → 데모)
+  lib/db/restaurantsApi.ts   서버 반경 검색 RPC 호출·DB 행 변환
+  lib/publicData/            CSV 스트리밍 파서·좌표 변환·가져오기 계획
+  hooks/useRestaurantData.ts 가상/실제 데이터 선택 (섞지 않음)
+  hooks/useTestLocation.ts   관리자 테스트 위치 (서버 관리자 확인)
+  admin/                     /admin 관리자 화면
+supabase/
+  migrations/                DB 스키마·RLS·함수
+  tests/                     로컬 PostGIS 시험 (RLS·반경·가져오기)
   types.ts                   타입 정의
 ```

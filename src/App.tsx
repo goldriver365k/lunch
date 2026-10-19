@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Category, GeoPoint, Mode, Radius, SortKey } from './types';
-import { MOCK_UPDATED_AT, mockDatasetFor } from './data/mockRestaurants';
 import { pilotArea } from './data/pilotAreas';
 import { ROUTE_TEST_PLACES } from './data/routeTestPlaces';
 import { APP_NAME, DEFAULT_RADIUS, SLOGAN, usesRadius } from './lib/constants';
 import { isValidRoutePoint, MAP_PROVIDER_LABEL, type RoutePlace } from './lib/mapLinks';
-import { applyLiveOrders, queryRestaurants, withDistance } from './lib/restaurants';
 import { useCurrentLocation } from './hooks/useCurrentLocation';
+import { useRestaurantData } from './hooks/useRestaurantData';
 import { useRouteFinder } from './hooks/useRouteFinder';
+import { useTestLocation } from './hooks/useTestLocation';
 import { ModeTabs } from './components/ModeTabs';
 import { RadiusSelector } from './components/RadiusSelector';
 import { CategoryFilter } from './components/CategoryFilter';
@@ -19,11 +19,9 @@ import { RestaurantDetail } from './components/RestaurantDetail';
 import { RouteSheets } from './components/RouteSheets';
 import { BottomSheet } from './components/BottomSheet';
 
-/** 가상 실시간 주문 갱신 주기 (ms) */
-const LIVE_TICK_MS = 15000;
-
 export default function App() {
   const { state: locationState, locate, choosePilot } = useCurrentLocation();
+  const testLocation = useTestLocation();
   const [mode, setMode] = useState<Mode>('walk');
   const [radius, setRadius] = useState<Radius>(DEFAULT_RADIUS);
   const [category, setCategory] = useState<Category | null>(null);
@@ -33,15 +31,6 @@ export default function App() {
   const [routeTestOpen, setRouteTestOpen] = useState(false);
   const [deliveryTarget, setDeliveryTarget] = useState<DeliveryTarget>('current');
   const [deliveryDetail, setDeliveryDetail] = useState('');
-  const [live, setLive] = useState({ tick: 0, updatedAt: MOCK_UPDATED_AT });
-
-  useEffect(() => {
-    const id = setInterval(
-      () => setLive((l) => ({ tick: l.tick + 1, updatedAt: new Date().toISOString() })),
-      LIVE_TICK_MS,
-    );
-    return () => clearInterval(id);
-  }, []);
 
   // 상세화면은 history 항목으로 열어서 브라우저·기기 뒤로 가기로 닫히게 한다.
   // 목록은 그대로 둔 채 위에 덮으므로 검색조건과 스크롤 위치가 유지된다.
@@ -60,7 +49,9 @@ export default function App() {
     else setSelectedId(null);
   }, []);
 
-  const currentPoint = locationState.status === 'ready' ? locationState.location.point : null;
+  // 관리자 테스트 모드면 테스트 위치를 검색 기준으로 쓴다 (실제 위치로 표시하지 않음)
+  const testPoint = testLocation.station?.point ?? null;
+  const currentPoint = testPoint ?? (locationState.status === 'ready' ? locationState.location.point : null);
   const delivery = mode === 'delivery';
   // 도보·포장은 현재 위치, 배달은 배달 주소를 기준으로 한다.
   const origin: GeoPoint | null = delivery
@@ -69,25 +60,11 @@ export default function App() {
       : pilotArea(deliveryTarget).center
     : currentPoint;
 
-  const dataset = useMemo(() => (origin ? mockDatasetFor(origin) : null), [origin]);
-  const currentAreaName = useMemo(() => (currentPoint ? mockDatasetFor(currentPoint).areaName : null), [currentPoint]);
-
-  const liveRestaurants = useMemo(
-    () => (dataset ? applyLiveOrders(dataset.restaurants, live.tick, live.updatedAt) : []),
-    [dataset, live],
-  );
-
-  const results = useMemo(
-    () => (origin ? queryRestaurants(liveRestaurants, { mode, radius, category, keyword, sort, origin }) : []),
-    [liveRestaurants, origin, mode, radius, category, keyword, sort],
-  );
+  const data = useRestaurantData({ origin, mode, radius, category, keyword, sort });
+  const results = data.results;
 
   // 상세화면은 고유 ID로 해당 매장 한 곳만 찾아 보여준다
-  const selected = useMemo(() => {
-    if (!selectedId || !origin) return null;
-    const r = liveRestaurants.find((x) => x.id === selectedId);
-    return r ? withDistance([r], origin)[0] : null;
-  }, [selectedId, origin, liveRestaurants]);
+  const selected = selectedId ? data.find(selectedId) : null;
 
   // 길찾기 출발지는 실제 GPS 위치일 때만 쓴다 (시범 위치는 출발지로 쓰지 않음)
   const gpsOrigin: RoutePlace | null = useMemo(
@@ -103,9 +80,11 @@ export default function App() {
 
   const originLabel = delivery
     ? '배달 주소'
-    : locationState.status === 'ready'
-      ? locationState.location.label
-      : '현재 위치';
+    : testLocation.station
+      ? `${testLocation.station.name}(테스트 위치)`
+      : locationState.status === 'ready'
+        ? locationState.location.label
+        : '현재 위치';
 
   return (
     <div className="app">
@@ -114,10 +93,25 @@ export default function App() {
         <p className="slogan">{SLOGAN}</p>
       </header>
 
-      <div className="mock-notice" role="note">
-        ⚠️ <strong>가상 데이터</strong> — 위치는 실제 GPS를 쓰지만, 음식점·가격·주문 수는 시연용으로 만든
-        예시이며 실제 정보가 아닙니다.
-      </div>
+      {testLocation.station && (
+        <div className="test-mode-bar" role="status">
+          <span>
+            <strong>테스트 모드 — {testLocation.station.name} 기준</strong>
+            <br />
+            <small>관리자 전용 · 실제 위치가 아니며 거리 검색 확인용이에요</small>
+          </span>
+          <button type="button" className="link-button" onClick={testLocation.exit}>
+            종료
+          </button>
+        </div>
+      )}
+
+      {data.source === 'mock' && (
+        <div className="mock-notice" role="note">
+          ⚠️ <strong>가상 데이터</strong> — 위치는 실제 GPS를 쓰지만, 음식점·가격·주문 수는 시연용으로 만든
+          예시이며 실제 정보가 아닙니다.
+        </div>
+      )}
 
       <ModeTabs value={mode} onChange={setMode} />
 
@@ -129,10 +123,10 @@ export default function App() {
           onTargetChange={setDeliveryTarget}
           onDetailChange={setDeliveryDetail}
         />
-      ) : (
+      ) : testLocation.station ? null : (
         <LocationPanel
           state={locationState}
-          areaName={currentAreaName}
+          areaName={data.source === 'mock' ? data.mockAreaName : ''}
           onRetry={locate}
           onPickPilot={(id) => choosePilot(pilotArea(id))}
         />
@@ -162,13 +156,24 @@ export default function App() {
       ) : (
         <>
           <div className="list-head">
-            <span className="count">{results.length}곳</span>
+            <span className="count">{data.loading ? '검색 중…' : `${results.length}곳`}</span>
             <SortToggle value={sort} onChange={setSort} />
           </div>
-          {results.length === 0 ? (
+          {!data.loading && results.length > 0 && sort === 'popular' && !data.hasOrders && (
+            <p className="list-note">실시간 주문정보 준비 중 · 가까운 순으로 보여드려요</p>
+          )}
+          {data.error ? (
+            <p className="empty" role="alert">
+              {data.error}{' '}
+              <button type="button" className="link-button inline" onClick={data.retry}>
+                다시 시도
+              </button>
+            </p>
+          ) : data.loading && results.length === 0 ? (
+            <p className="empty">주변 가게를 찾는 중…</p>
+          ) : results.length === 0 ? (
             <p className="empty">
-              조건에 맞는 가게가 없어요.
-              {usesRadius(mode) && radius < 300 && ' 반경을 넓혀 보세요.'}
+              조건에 맞는 가게가 없어요.{usesRadius(mode) && radius < 300 ? ' 검색 범위를 넓혀보세요.' : ''}
             </p>
           ) : (
             <ol className="list">
@@ -181,7 +186,7 @@ export default function App() {
       )}
 
       <footer className="app-footer">
-        <p>3단계 프로토타입 · 거리는 좌표 기준 직선거리 · 실제 도보 거리·시간은 외부 지도에서 확인</p>
+        <p>거리는 좌표 기준 직선거리 · 실제 도보 거리·시간은 외부 지도에서 확인</p>
         <p>
           <button type="button" className="link-button inline" onClick={() => setRouteTestOpen(true)}>
             길찾기 연결 시험 · 지도 설정
@@ -208,7 +213,7 @@ export default function App() {
           <p className="sheet-text">
             가상 매장 좌표는 길찾기에 쓰지 않아요. 아래 공공 장소(역)로 외부 지도 연결만 시험할 수 있어요.
             <br />
-            <span className="muted">역 중심 근사 좌표 · 지도에서 위치 확인 필요</span>
+            <span className="muted">역 중심 좌표 (위키백과·위키데이터 대조)</span>
           </p>
           <div className="sheet-actions">
             {ROUTE_TEST_PLACES.map((place) => (

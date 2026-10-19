@@ -78,7 +78,7 @@ describe('sortRestaurants', () => {
   it('기본(최근 주문 많은 순)은 해당 채널 주문 수 내림차순', () => {
     const out = sortRestaurants(results, 'popular', 'delivery');
     for (let i = 1; i < out.length; i++)
-      expect(ordersFor(out[i - 1], 'delivery')).toBeGreaterThanOrEqual(ordersFor(out[i], 'delivery'));
+      expect(ordersFor(out[i - 1], 'delivery')!).toBeGreaterThanOrEqual(ordersFor(out[i], 'delivery')!);
   });
 
   it('배달 주문과 홀 주문은 합산하지 않는다', () => {
@@ -86,8 +86,8 @@ describe('sortRestaurants', () => {
     expect(ordersFor(jjamppong, 'walk')).toBe(jjamppong.recentOrders.walk);
     expect(ordersFor(jjamppong, 'delivery')).toBe(jjamppong.recentOrders.delivery);
     expect(ordersFor(jjamppong, 'walk')).not.toBe(ordersFor(jjamppong, 'delivery'));
-    // 홀만 하는 매장의 배달 주문은 0
-    expect(ordersFor(list.find((r) => r.name === '골목집 백반')!, 'delivery')).toBe(0);
+    // 홀만 하는 매장의 배달 주문은 0건이 아니라 '정보 없음'
+    expect(ordersFor(list.find((r) => r.name === '골목집 백반')!, 'delivery')).toBeUndefined();
   });
 
   it('거리순은 직선거리 오름차순', () => {

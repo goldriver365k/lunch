@@ -41,17 +41,42 @@ export function filterRestaurants(list: Restaurant[], query: RestaurantQuery): R
   );
 }
 
-/** 해당 채널의 최근 주문 수 — 다른 채널 주문은 합산하지 않는다 */
-export function ordersFor(r: Restaurant, mode: Mode): number {
-  return r.recentOrders[mode] ?? 0;
+/**
+ * 해당 채널의 최근 주문 수 — 다른 채널 주문은 합산하지 않는다.
+ * 주문정보가 없으면 undefined (0건으로 취급하지 않는다).
+ */
+export function ordersFor(r: Restaurant, mode: Mode): number | undefined {
+  return r.recentOrders[mode];
+}
+
+/** 목록에 주문정보가 하나라도 있는지 — 없으면 인기순 대신 거리순으로 보여준다 */
+export function hasOrderData(list: Restaurant[], mode: Mode): boolean {
+  return list.some((r) => ordersFor(r, mode) !== undefined);
+}
+
+/** 운영이 확인된(yes) 매장을 미확인보다 앞에 둔다 — 0이 앞 */
+function confirmedRank(r: Restaurant, mode: Mode): number {
+  return r.channelStatus[mode] === 'yes' ? 0 : 1;
+}
+
+/** 주문정보가 있는 매장은 주문 수 내림차순, 없는 매장은 그 뒤에 */
+function compareOrders(a: Restaurant, b: Restaurant, mode: Mode): number {
+  const oa = ordersFor(a, mode);
+  const ob = ordersFor(b, mode);
+  if (oa === undefined && ob === undefined) return 0;
+  if (oa === undefined) return 1;
+  if (ob === undefined) return -1;
+  return ob - oa;
 }
 
 export function sortRestaurants(list: RestaurantResult[], sort: SortKey, mode: Mode): RestaurantResult[] {
   const copy = [...list];
+  const byConfirmed = (a: RestaurantResult, b: RestaurantResult) =>
+    mode === 'takeout' ? confirmedRank(a, mode) - confirmedRank(b, mode) : 0;
   if (sort === 'distance') {
-    copy.sort((a, b) => a.distanceM - b.distanceM || ordersFor(b, mode) - ordersFor(a, mode));
+    copy.sort((a, b) => a.distanceM - b.distanceM || compareOrders(a, b, mode));
   } else {
-    copy.sort((a, b) => ordersFor(b, mode) - ordersFor(a, mode) || a.distanceM - b.distanceM);
+    copy.sort((a, b) => byConfirmed(a, b) || compareOrders(a, b, mode) || a.distanceM - b.distanceM);
   }
   return copy;
 }
@@ -62,7 +87,8 @@ export function queryRestaurants(list: Restaurant[], query: RestaurantQuery): Re
 
 export interface PricedMenu {
   menu: MenuItem;
-  price: number;
+  /** null = 가격정보 없음 */
+  price: number | null;
 }
 
 /**
@@ -79,6 +105,11 @@ export function menusForChannel(r: Restaurant, mode: Mode): PricedMenu[] {
 
 export function formatPrice(won: number): string {
   return `${won.toLocaleString('ko-KR')}원`;
+}
+
+/** 가격이 확인되지 않았으면 '가격정보 없음' — 0원으로 쓰지 않는다 */
+export function formatMenuPrice(won: number | null | undefined): string {
+  return won === null || won === undefined || won <= 0 ? '가격정보 없음' : formatPrice(won);
 }
 
 /** 직선거리 기준 도보 예상 시간(분) — 실제 경로 시간은 외부 지도에서 확인 */
@@ -109,6 +140,7 @@ export function applyLiveOrders<T extends Restaurant>(list: T[], tick: number, u
   if (tick === 0) return list;
   return list.map((r) => {
     const recentOrders: Restaurant['recentOrders'] = {};
+    if (r.dataSource.kind !== 'mock') return r; // 실제 데이터는 흉내 내지 않는다
     for (const [mode, n] of Object.entries(r.recentOrders) as [Mode, number][]) {
       recentOrders[mode] = Math.max(0, n + (hashString(`${r.id}:${mode}:${tick}`) % 9) - 3);
     }

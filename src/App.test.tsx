@@ -317,7 +317,7 @@ describe('App — 3단계 외부 지도 길찾기', () => {
     expect(openWeb).not.toHaveBeenCalled();
     await user.click(within(chooser).getByRole('button', { name: /카카오맵/ }));
     expect(openWeb).toHaveBeenCalledWith(
-      `https://map.kakao.com/link/by/walk/${encodeURIComponent('현재 위치')},${seolleung.lat.toFixed(6)},${seolleung.lng.toFixed(6)}/${encodeURIComponent('선릉역')},37.504490,127.048930`,
+      `https://map.kakao.com/link/by/walk/${encodeURIComponent('현재 위치')},${seolleung.lat.toFixed(6)},${seolleung.lng.toFixed(6)}/${encodeURIComponent('선릉역')},37.504500,127.049000`,
     );
     expect(localStorage.getItem('mwomeok.mapProvider')).toBe('kakao');
 
@@ -325,7 +325,7 @@ describe('App — 3단계 외부 지도 길찾기', () => {
     await startRouteTest(user, '판교역');
     expect(screen.queryByRole('dialog', { name: /지도를 골라/ })).not.toBeInTheDocument();
     expect(openWeb).toHaveBeenCalledTimes(2);
-    expect(openWeb.mock.calls[1][0]).toContain(`/${encodeURIComponent('판교역')},37.394820,127.111190`);
+    expect(openWeb.mock.calls[1][0]).toContain(`/${encodeURIComponent('판교역')},37.394762,127.111137`);
   });
 
   it('네이버지도: 공식 nmap://route/walk 로 연결하고, 앱이 없을 때 카카오맵 웹 대안을 안내한다', async () => {
@@ -337,7 +337,7 @@ describe('App — 3단계 외부 지도 길찾기', () => {
     expect(openApp).toHaveBeenCalledTimes(1);
     const url = new URL(openApp.mock.calls[0][0] as string);
     expect(url.protocol + '//' + url.host + url.pathname).toBe('nmap://route/walk');
-    expect(url.searchParams.get('dlat')).toBe('37.504490');
+    expect(url.searchParams.get('dlat')).toBe('37.504500');
     expect(url.searchParams.get('slat')).toBe(seolleung.lat.toFixed(6));
     expect(url.searchParams.get('appname')).toBe(window.location.origin);
 
@@ -354,7 +354,7 @@ describe('App — 3단계 외부 지도 길찾기', () => {
     await user.click(screen.getByRole('button', { name: /길찾기 연결 시험/ }));
     await user.click(screen.getByRole('button', { name: /카카오맵 앱으로 선릉역 길찾기/ }));
     expect(openApp).toHaveBeenCalledWith(
-      `kakaomap://route?sp=${seolleung.lat.toFixed(6)},${seolleung.lng.toFixed(6)}&ep=37.504490,127.048930&by=FOOT`,
+      `kakaomap://route?sp=${seolleung.lat.toFixed(6)},${seolleung.lng.toFixed(6)}&ep=37.504500,127.049000&by=FOOT`,
     );
     expect(openWeb).not.toHaveBeenCalled();
   });
@@ -382,7 +382,7 @@ describe('App — 3단계 외부 지도 길찾기', () => {
     const sheet = screen.getByRole('dialog', { name: '실제 출발 위치를 확인하지 못했어요' });
     expect(openWeb).not.toHaveBeenCalled();
     await user.click(within(sheet).getByRole('button', { name: /지도에서 출발지 선택/ }));
-    expect(openWeb).toHaveBeenCalledWith(`https://map.kakao.com/link/to/${encodeURIComponent('선릉역')},37.504490,127.048930`);
+    expect(openWeb).toHaveBeenCalledWith(`https://map.kakao.com/link/to/${encodeURIComponent('선릉역')},37.504500,127.049000`);
   });
 
   it('GPS 거부 상태에서도 상세화면·매장찾기가 오류 없이 동작한다', async () => {

@@ -61,6 +61,11 @@ export function kakaoWebRouteUrl(dest: RoutePlace, origin: RoutePlace | null): s
   return `https://map.kakao.com/link/to/${named(dest)}`;
 }
 
+/** 카카오맵 지도 바로가기 — 좌표 위치에 핀을 꽂아 보여준다 (관리자 좌표 확인용) */
+export function kakaoMapPinUrl(name: string, lat: number, lng: number): string {
+  return `https://map.kakao.com/link/map/${encodeURIComponent(name)},${lat},${lng}`;
+}
+
 /** 카카오맵 앱 도보 길찾기 URL Scheme */
 export function kakaoAppRouteUrl(dest: RoutePlace, origin: RoutePlace | null): string {
   const sp = origin ? `sp=${latLng(origin.point)}&` : '';

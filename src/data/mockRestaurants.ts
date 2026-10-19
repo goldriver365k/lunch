@@ -142,6 +142,11 @@ export function buildMockRestaurants(areaKey: string, center: GeoPoint, areaLabe
     }
     return {
       ...rest,
+      channelStatus: {
+        walk: rest.modes.includes('walk') ? 'yes' : 'no',
+        delivery: rest.modes.includes('delivery') ? 'yes' : 'no',
+        takeout: rest.modes.includes('takeout') ? 'yes' : 'no',
+      },
       id,
       address: `가상 주소 · ${areaLabel} ${directionName(bearing)}쪽 약 ${d}m`,
       location: destinationPoint(center, d, bearing),

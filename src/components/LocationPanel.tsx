@@ -3,8 +3,12 @@ import type { PilotAreaId } from '../types';
 import type { LocationState } from '../hooks/useCurrentLocation';
 import { PilotPicker } from './PilotPicker';
 
+/** GPS 정확도가 이보다 크면(미터) 재확인을 안내한다 */
+export const LOW_ACCURACY_M = 100;
+
 interface Props {
   state: LocationState;
+  /** 가상 데이터 시범 지역 이름 — null이면 '현재 위치 주변에 가상 매장 배치' 안내, ''면 안내 없음 */
   areaName: string | null;
   onRetry: () => void;
   onPickPilot: (id: PilotAreaId) => void;
@@ -53,6 +57,14 @@ export function LocationPanel({ state, areaName, onRetry, onPickPilot }: Props) 
           {changing ? '닫기' : '위치 변경'}
         </button>
       </div>
+      {location.source === 'gps' && location.accuracyM !== undefined && location.accuracyM > LOW_ACCURACY_M && (
+        <p className="location-warn" role="status">
+          위치 정확도가 낮아요(±{location.accuracyM}m). 실내라면 창가나 밖에서{' '}
+          <button type="button" className="link-button inline" onClick={onRetry}>
+            위치 다시 확인
+          </button>
+        </p>
+      )}
       {areaName === null && (
         <p className="location-help">시범 지역 밖이라 현재 위치 주변에 가상 매장을 배치했어요.</p>
       )}

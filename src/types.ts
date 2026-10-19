@@ -14,7 +14,8 @@ export type Category =
   | '분식'
   | '아시안'
   | '패스트푸드'
-  | '카페·디저트';
+  | '카페·디저트'
+  | '기타';
 
 /** 위도·경도 (WGS84) */
 export interface GeoPoint {
@@ -42,8 +43,14 @@ export interface ActiveLocation {
 /** 주문 채널 — 탭과 같은 키를 쓴다 (walk = 홀/도보 식사) */
 export type Channel = Mode;
 
-/** 채널별 판매가격 — 해당 채널에서 팔지 않으면 비워 둔다 */
-export type ChannelPrices = Partial<Record<Channel, number>>;
+/**
+ * 채널별 판매가격.
+ * 키가 없으면 그 채널에서 팔지 않음, null이면 팔지만 가격정보 없음 (0원으로 쓰지 않는다).
+ */
+export type ChannelPrices = Partial<Record<Channel, number | null>>;
+
+/** 운영 여부 — 확인됨 / 운영 안 함 / 미확인 */
+export type ChannelStatus = 'yes' | 'no' | 'unknown';
 
 export interface MenuItem {
   id: string;
@@ -54,8 +61,8 @@ export interface MenuItem {
 }
 
 export interface DataSourceInfo {
-  /** 'mock' = 가상 데이터 */
-  kind: 'mock';
+  /** 'mock' = 가상 데이터, 'db' = 실제 음식점 DB */
+  kind: 'mock' | 'db';
   /** 실시간 데이터 제공 여부 */
   realtime: boolean;
   /** 데이터 갱신시각 (ISO 8601) */
@@ -72,14 +79,19 @@ export interface Restaurant {
   location: GeoPoint;
   /** 좌표가 실제 매장 위치로 검증됐는지 — false면 외부 지도 길찾기에 쓰지 않는다 */
   coordVerified: boolean;
-  /** 채널별 최근 30분 주문 수 — 채널끼리 합산하지 않는다 */
+  /** 채널별 최근 30분 주문 수 — 채널끼리 합산하지 않는다. 키가 없으면 주문정보 없음 (0건이 아님) */
   recentOrders: Partial<Record<Channel, number>>;
-  rating: number;
+  /** 채널별 운영 여부 */
+  channelStatus: Record<Channel, ChannelStatus>;
+  /** 평점 — 실제 DB에는 아직 없다 */
+  rating?: number;
   /** 메뉴 (대표메뉴 + 추가 메뉴) */
   menus: MenuItem[];
   /** 주문 채널 */
   modes: Mode[];
   dataSource: DataSourceInfo;
+  /** 최종 확인일 (실제 DB) */
+  lastVerifiedAt?: string | null;
   /** 배달 예상 시간(분) — 배달 지원 시 */
   deliveryMinutes?: number;
   deliveryFee?: number;
