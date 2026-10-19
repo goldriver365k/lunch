@@ -542,10 +542,14 @@ begin
         from (select provider, count(*) cnt from valid group by provider) x), '{}'::jsonb),
     'windows', (select jsonb_object_agg(w.k, (
                     select jsonb_object_agg(ch.channel,
-                             (select count(*) from valid v where v.channel = ch.channel and v.ordered_at >= w.since))
+                             (select count(*) from valid v where v.channel = ch.channel
+                                 and v.ordered_at >= w.since and v.ordered_at < w.until))
                       from (values ('HALL'), ('DELIVERY'), ('PICKUP')) ch(channel)))
-                  from (values ('10m', now() - interval '10 minutes'), ('30m', now() - interval '30 minutes'),
-                               ('60m', now() - interval '60 minutes')) w(k, since)),
+                  from (values ('10m', now() - interval '10 minutes', now() + interval '1 minute'),
+                               ('30m', now() - interval '30 minutes', now() + interval '1 minute'),
+                               ('60m', now() - interval '60 minutes', now() + interval '1 minute'),
+                               -- 오늘 점심 11:00~14:00 (한국시간)
+                               ('lunch', kst_day + interval '11 hours', kst_day + interval '14 hours')) w(k, since, until)),
     'menu_quantities', coalesce((select jsonb_agg(jsonb_build_object('channel', channel, 'name', name, 'quantity', qty, 'matched', matched)
         order by channel, qty desc)
         from (select v.channel, coalesce(m.name, i.external_menu_name) as name, sum(i.quantity) qty, bool_or(i.menu_id is not null) matched

@@ -83,7 +83,7 @@ export interface RestaurantOrderStats {
   connections: Pick<OrderConnection, 'id' | 'provider' | 'vendor' | 'status' | 'ingest_mode' | 'public_allowed' | 'last_success_at' | 'last_error' | 'last_error_at'>[];
   today_by_channel: Partial<Record<Channel, { count: number; net_amount: number; gross_amount: number }>>;
   today_by_provider: Partial<Record<OrderProvider, number>>;
-  windows: Record<'10m' | '30m' | '60m', Record<'HALL' | 'DELIVERY' | 'PICKUP', number>>;
+  windows: Record<'10m' | '30m' | '60m' | 'lunch', Record<'HALL' | 'DELIVERY' | 'PICKUP', number>>;
   menu_quantities: { channel: Channel; name: string; quantity: number; matched: boolean }[];
   cancelled_today: number;
   refund_today: number;

@@ -115,9 +115,9 @@ export function RestaurantOrders({ client, test }: { client: SupabaseClient; tes
                 </tr>
               </thead>
               <tbody>
-                {(['10m', '30m', '60m'] as const).map((w) => (
+                {(['10m', '30m', '60m', 'lunch'] as const).map((w) => (
                   <tr key={w}>
-                    <th>최근 {w.replace('m', '분')}</th>
+                    <th>{w === 'lunch' ? '오늘 점심 11~14시' : `최근 ${w.replace('m', '분')}`}</th>
                     <td>{stats.windows[w].HALL}</td>
                     <td>{stats.windows[w].DELIVERY}</td>
                     <td>{stats.windows[w].PICKUP}</td>

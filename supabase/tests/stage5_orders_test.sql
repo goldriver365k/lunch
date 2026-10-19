@@ -203,6 +203,10 @@ select pg_temp.check((select (r -> 'today' ->> 'HALL')::int = 30 from (select pu
 select pg_temp.check((select (r -> 'today_by_provider' ->> 'coupangeats')::int = 2 and (r -> 'today_by_provider' ->> 'baemin')::int = 3
                         from (select public.admin_restaurant_order_stats('20000000-0000-0000-0000-000000000001', false) r) x),
                      '매장별 현황: 배민 3 · 쿠팡이츠 2 따로');
+select pg_temp.check((select (r -> 'windows' -> '10m' ->> 'HALL')::int = 4
+                             and (r -> 'windows' -> 'lunch' ->> 'HALL') is not null
+                        from (select public.admin_restaurant_order_stats('20000000-0000-0000-0000-000000000001', false) r) x),
+                     '매장별 현황: 최근 10분 홀 4건 + 오늘 점심(11~14시) 창 제공');
 
 -- ───── 메뉴 매칭 ─────
 select pg_temp.check(public.admin_map_menu('20000000-0000-0000-0000-000000000001', '돼지불백(대)', '30000000-0000-0000-0000-000000000001') = 1,
