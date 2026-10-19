@@ -1,20 +1,21 @@
-import type { Mode, Restaurant } from '../types';
+import type { Mode, RestaurantResult } from '../types';
+import { WALK_M_PER_MIN } from '../lib/constants';
 import { formatDistance, formatPrice } from '../lib/restaurants';
 
 interface Props {
-  restaurant: Restaurant;
+  restaurant: RestaurantResult;
   rank: number;
   mode: Mode;
   expanded: boolean;
   onToggle: () => void;
 }
 
-function modeMeta(r: Restaurant, mode: Mode): string {
+function modeMeta(r: RestaurantResult, mode: Mode): string {
   if (mode === 'delivery') {
     return `배달 ${r.deliveryMinutes}분 · 배달비 ${formatPrice(r.deliveryFee ?? 0)}`;
   }
   if (mode === 'takeout') return `포장 준비 약 ${r.takeoutMinutes}분`;
-  return `도보 약 ${Math.max(1, Math.round(r.distanceM / 70))}분`;
+  return `도보 약 ${Math.max(1, Math.ceil(r.distanceM / WALK_M_PER_MIN))}분`;
 }
 
 export function RestaurantCard({ restaurant: r, rank, mode, expanded, onToggle }: Props) {
@@ -35,9 +36,9 @@ export function RestaurantCard({ restaurant: r, rank, mode, expanded, onToggle }
             <span className="category">{r.category}</span>
           </span>
           <span className="card-sub">
-            {formatDistance(r.distanceM)} · ★ {r.rating.toFixed(1)} · {modeMeta(r, mode)}
+            직선 {formatDistance(r.distanceM)} · ★ {r.rating.toFixed(1)} · {modeMeta(r, mode)}
           </span>
-          <span className="live">🔥 최근 30분 {r.recentOrders}건 (예시)</span>
+          <span className="live">🔥 최근 30분 주문 {r.recentOrders}건 (가상)</span>
         </span>
         <span className="chevron" aria-hidden="true">{expanded ? '▲' : '▼'}</span>
       </button>

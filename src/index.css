@@ -105,7 +105,7 @@ button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-c
 .segmented {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   background: var(--line);
   border-radius: 10px;
   padding: 3px;
@@ -181,3 +181,37 @@ button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-c
 
 .empty { text-align: center; color: var(--muted); padding: 40px 0; font-size: 14px; }
 .app-footer { margin-top: 24px; text-align: center; font-size: 12px; color: var(--muted); }
+
+/* 2단계: 위치·배달 주소 */
+.location-panel {
+  margin-top: 10px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.location-panel.error { border-color: var(--warn-line); background: var(--warn-bg); }
+.location-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.location-line { margin: 0; font-size: 14px; line-height: 1.45; }
+.location-help { margin: 0; font-size: 12px; color: var(--muted); }
+.location-change { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.muted { color: var(--muted); font-size: 13px; }
+.pilot-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.pilot-picker .pilot-picker { display: contents; }
+.chip:disabled { opacity: 0.4; cursor: not-allowed; }
+.link-button {
+  flex: none;
+  min-height: 32px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 700;
+  align-self: flex-start;
+}
+.location-row .link-button { align-self: center; }
+.detail-input { min-height: 40px; font-size: 16px; }
