@@ -39,24 +39,47 @@ export interface ActiveLocation {
   accuracyM?: number;
 }
 
+/** 주문 채널 — 탭과 같은 키를 쓴다 (walk = 홀/도보 식사) */
+export type Channel = Mode;
+
+/** 채널별 판매가격 — 해당 채널에서 팔지 않으면 비워 둔다 */
+export type ChannelPrices = Partial<Record<Channel, number>>;
+
 export interface MenuItem {
+  id: string;
   name: string;
-  price: number;
+  /** 대표메뉴 여부 */
+  signature: boolean;
+  prices: ChannelPrices;
+}
+
+export interface DataSourceInfo {
+  /** 'mock' = 가상 데이터 */
+  kind: 'mock';
+  /** 실시간 데이터 제공 여부 */
+  realtime: boolean;
+  /** 데이터 갱신시각 (ISO 8601) */
+  updatedAt: string;
 }
 
 export interface Restaurant {
   id: string;
   name: string;
   category: Category;
-  /** 매장 좌표 — 가상 값 */
+  /** 매장 주소 */
+  address: string;
+  /** 매장 좌표 */
   location: GeoPoint;
-  /** 최근 30분 주문 수 — 가상 값 */
-  recentOrders: number;
+  /** 좌표가 실제 매장 위치로 검증됐는지 — false면 외부 지도 길찾기에 쓰지 않는다 */
+  coordVerified: boolean;
+  /** 채널별 최근 30분 주문 수 — 채널끼리 합산하지 않는다 */
+  recentOrders: Partial<Record<Channel, number>>;
   rating: number;
-  /** 대표메뉴 */
+  /** 메뉴 (대표메뉴 + 추가 메뉴) */
   menus: MenuItem[];
-  /** 지원하는 식사 방식 */
+  /** 주문 채널 */
   modes: Mode[];
+  dataSource: DataSourceInfo;
   /** 배달 예상 시간(분) — 배달 지원 시 */
   deliveryMinutes?: number;
   deliveryFee?: number;

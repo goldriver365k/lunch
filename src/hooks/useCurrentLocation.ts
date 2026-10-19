@@ -32,7 +32,8 @@ export function useCurrentLocation() {
       setState({ status: 'error', reason: '이 브라우저는 위치 확인을 지원하지 않아요.' });
       return;
     }
-    setState({ status: 'locating' });
+    // 이미 위치가 있으면 결과가 나올 때까지 그대로 두어 목록·상세화면이 사라지지 않게 한다
+    setState((prev) => (prev.status === 'ready' ? prev : { status: 'locating' }));
     navigator.geolocation.getCurrentPosition(
       (pos) =>
         setState({

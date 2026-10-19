@@ -1,5 +1,5 @@
-import type { Category, GeoPoint, Mode, Radius, Restaurant, RestaurantResult, SortKey } from '../types';
-import { DEFAULT_DELIVERY_RADIUS_M, usesRadius } from './constants';
+import type { Category, GeoPoint, MenuItem, Mode, Radius, Restaurant, RestaurantResult, SortKey } from '../types';
+import { DEFAULT_DELIVERY_RADIUS_M, usesRadius, WALK_M_PER_MIN } from './constants';
 import { distanceM } from './geo';
 
 export interface RestaurantQuery {
@@ -41,22 +41,49 @@ export function filterRestaurants(list: Restaurant[], query: RestaurantQuery): R
   );
 }
 
-export function sortRestaurants(list: RestaurantResult[], sort: SortKey): RestaurantResult[] {
+/** 해당 채널의 최근 주문 수 — 다른 채널 주문은 합산하지 않는다 */
+export function ordersFor(r: Restaurant, mode: Mode): number {
+  return r.recentOrders[mode] ?? 0;
+}
+
+export function sortRestaurants(list: RestaurantResult[], sort: SortKey, mode: Mode): RestaurantResult[] {
   const copy = [...list];
   if (sort === 'distance') {
-    copy.sort((a, b) => a.distanceM - b.distanceM || b.recentOrders - a.recentOrders);
+    copy.sort((a, b) => a.distanceM - b.distanceM || ordersFor(b, mode) - ordersFor(a, mode));
   } else {
-    copy.sort((a, b) => b.recentOrders - a.recentOrders || a.distanceM - b.distanceM);
+    copy.sort((a, b) => ordersFor(b, mode) - ordersFor(a, mode) || a.distanceM - b.distanceM);
   }
   return copy;
 }
 
 export function queryRestaurants(list: Restaurant[], query: RestaurantQuery): RestaurantResult[] {
-  return sortRestaurants(filterRestaurants(list, query), query.sort);
+  return sortRestaurants(filterRestaurants(list, query), query.sort, query.mode);
+}
+
+export interface PricedMenu {
+  menu: MenuItem;
+  price: number;
+}
+
+/**
+ * 해당 채널에서 파는 메뉴와 그 채널 가격. 대표메뉴가 먼저, 나머지는 등록 순서대로.
+ * 가격이 없는 메뉴는 그 채널에서 팔지 않는 것으로 보고 빼며, 가격을 다른 채널에서 빌려오지 않는다.
+ */
+export function menusForChannel(r: Restaurant, mode: Mode): PricedMenu[] {
+  const priced = r.menus.flatMap((menu) => {
+    const price = menu.prices[mode];
+    return price === undefined ? [] : [{ menu, price }];
+  });
+  return [...priced.filter((p) => p.menu.signature), ...priced.filter((p) => !p.menu.signature)];
 }
 
 export function formatPrice(won: number): string {
   return `${won.toLocaleString('ko-KR')}원`;
+}
+
+/** 직선거리 기준 도보 예상 시간(분) — 실제 경로 시간은 외부 지도에서 확인 */
+export function walkMinutes(distanceM: number): number {
+  return Math.max(1, Math.ceil(distanceM / WALK_M_PER_MIN));
 }
 
 export function formatDistance(m: number): string {
@@ -75,13 +102,16 @@ export function hashString(s: string): number {
 
 /**
  * 실시간 주문 변동을 흉내 내는 가상 시뮬레이션.
- * 실제 주문 데이터가 아니며, tick마다 각 가게 주문 수를 -3~+5 범위에서 결정적으로 바꾼다.
- * tick 0은 원래 값을 그대로 돌려준다.
+ * 실제 주문 데이터가 아니며, tick마다 각 채널 주문 수를 -3~+5 범위에서 결정적으로 바꾼다.
+ * tick 0은 원래 값을 그대로 돌려준다. 갱신시각은 updatedAt으로 바뀐다.
  */
-export function applyLiveOrders<T extends Restaurant>(list: T[], tick: number): T[] {
+export function applyLiveOrders<T extends Restaurant>(list: T[], tick: number, updatedAt: string): T[] {
   if (tick === 0) return list;
-  return list.map((r) => ({
-    ...r,
-    recentOrders: Math.max(0, r.recentOrders + (hashString(`${r.id}:${tick}`) % 9) - 3),
-  }));
+  return list.map((r) => {
+    const recentOrders: Restaurant['recentOrders'] = {};
+    for (const [mode, n] of Object.entries(r.recentOrders) as [Mode, number][]) {
+      recentOrders[mode] = Math.max(0, n + (hashString(`${r.id}:${mode}:${tick}`) % 9) - 3);
+    }
+    return { ...r, recentOrders, dataSource: { ...r.dataSource, updatedAt } };
+  });
 }
