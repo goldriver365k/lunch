@@ -1,59 +1,78 @@
-import type { Mode, Restaurant } from '../types';
-import { formatDistance, formatPrice } from '../lib/restaurants';
+import type { Mode, RestaurantResult } from '../types';
+import { formatDistance, formatMenuPrice, formatPrice, ordersFor, walkMinutes } from '../lib/restaurants';
+import { activitySummary, asOfTime, featuredMenu } from '../lib/activity';
 
 interface Props {
-  restaurant: Restaurant;
+  restaurant: RestaurantResult;
   rank: number;
   mode: Mode;
-  expanded: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
 }
 
-function modeMeta(r: Restaurant, mode: Mode): string {
+function modeMeta(r: RestaurantResult, mode: Mode): string {
+  const status = r.channelStatus[mode];
   if (mode === 'delivery') {
-    return `배달 ${r.deliveryMinutes}분 · 배달비 ${formatPrice(r.deliveryFee ?? 0)}`;
+    // 배달비·예상시간은 확인된 값이 있을 때만 (임의로 만들지 않음)
+    const parts = [
+      r.deliveryMinutes !== undefined ? `배달 ${r.deliveryMinutes}분` : null,
+      r.deliveryFee !== undefined ? `배달비 ${formatPrice(r.deliveryFee)}` : null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : '매장 배달 거리 안';
   }
-  if (mode === 'takeout') return `포장 준비 약 ${r.takeoutMinutes}분`;
-  return `도보 약 ${Math.max(1, Math.round(r.distanceM / 70))}분`;
+  if (mode === 'takeout') {
+    if (status === 'unknown') return '포장 운영 미확인';
+    return r.takeoutMinutes !== undefined ? `포장 준비 약 ${r.takeoutMinutes}분` : '포장 가능';
+  }
+  const walk = `도보 약 ${walkMinutes(r.distanceM)}분`;
+  return status === 'unknown' ? `${walk} · 홀 운영 미확인` : walk;
 }
 
-export function RestaurantCard({ restaurant: r, rank, mode, expanded, onToggle }: Props) {
-  const panelId = `menu-${r.id}`;
+export function RestaurantCard({ restaurant: r, rank, mode, onOpen }: Props) {
+  const featured = featuredMenu(r, mode);
+  const top = featured?.priced;
+  const orders = ordersFor(r, mode);
+  const activity = r.activity ? activitySummary(r.activity, mode) : null;
   return (
-    <li className={expanded ? 'card expanded' : 'card'}>
-      <button
-        type="button"
-        className="card-head"
-        aria-expanded={expanded}
-        aria-controls={panelId}
-        onClick={onToggle}
-      >
+    <li className="card">
+      <button type="button" className="card-head" aria-haspopup="dialog" onClick={onOpen}>
         <span className="rank">{rank}</span>
         <span className="card-main">
           <span className="card-title">
             <span className="name">{r.name}</span>
             <span className="category">{r.category}</span>
           </span>
-          <span className="card-sub">
-            {formatDistance(r.distanceM)} · ★ {r.rating.toFixed(1)} · {modeMeta(r, mode)}
+          <span className="card-menu">
+            {featured && top ? (
+              <>
+                <span className="card-menu-name">
+                  {featured.popular && <span className="popular-tag">인기</span>}
+                  {top.menu.name}
+                </span>
+                <span className={top.price === null ? 'price muted' : 'price'}>{formatMenuPrice(top.price)}</span>
+              </>
+            ) : (
+              <span className="muted">메뉴정보 준비 중</span>
+            )}
           </span>
-          <span className="live">🔥 최근 30분 {r.recentOrders}건 (예시)</span>
+          <span className="card-sub">
+            직선 {formatDistance(r.distanceM)}
+            {r.rating !== undefined && ` · ★ ${r.rating.toFixed(1)}`} · {modeMeta(r, mode)}
+          </span>
+          {mode === 'delivery' && r.dataSource.kind === 'db' && <span className="ok-tag">배달 가능 거리 안</span>}
+          {activity && r.activity ? (
+            <span className={r.activity.status === 'active' ? 'live' : 'live muted'}>
+              {r.activity.status === 'active' ? '📈 ' : ''}
+              {activity} · {asOfTime(r.activity.asOf)} 기준
+              {r.activity.scope === 'test' && <span className="test-tag">테스트 데이터</span>}
+            </span>
+          ) : orders === undefined ? (
+            <span className="live muted">주문정보 없음</span>
+          ) : (
+            <span className="live">🔥 최근 30분 주문 {orders}건 (가상)</span>
+          )}
         </span>
-        <span className="chevron" aria-hidden="true">{expanded ? '▲' : '▼'}</span>
+        <span className="chevron" aria-hidden="true">›</span>
       </button>
-      {expanded && (
-        <div id={panelId} className="menu-panel">
-          <p className="menu-title">대표메뉴</p>
-          <ul className="menu-list">
-            {r.menus.map((m) => (
-              <li key={m.name}>
-                <span>{m.name}</span>
-                <span className="price">{formatPrice(m.price)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </li>
   );
 }

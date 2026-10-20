@@ -2,7 +2,7 @@
 export type Mode = 'walk' | 'delivery' | 'takeout';
 
 /** 도보 식사·포장에서 선택 가능한 검색 반경 (미터) */
-export type Radius = 30 | 50 | 70 | 100;
+export type Radius = 100 | 200 | 300;
 
 export type SortKey = 'popular' | 'distance';
 
@@ -14,29 +14,127 @@ export type Category =
   | '분식'
   | '아시안'
   | '패스트푸드'
-  | '카페·디저트';
+  | '카페·디저트'
+  | '기타';
+
+/** 위도·경도 (WGS84) */
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
+export type PilotAreaId = 'seolleung' | 'yeoksam' | 'pangyo' | 'yeouido';
+
+export interface PilotArea {
+  id: PilotAreaId;
+  name: string;
+  center: GeoPoint;
+}
+
+/** 검색 기준이 되는 위치 */
+export interface ActiveLocation {
+  source: 'gps' | 'pilot';
+  label: string;
+  point: GeoPoint;
+  /** GPS 정확도 (미터) */
+  accuracyM?: number;
+}
+
+/** 주문 채널 — 탭과 같은 키를 쓴다 (walk = 홀/도보 식사) */
+export type Channel = Mode;
+
+/**
+ * 채널별 판매가격.
+ * 키가 없으면 그 채널에서 팔지 않음, null이면 팔지만 가격정보 없음 (0원으로 쓰지 않는다).
+ */
+export type ChannelPrices = Partial<Record<Channel, number | null>>;
+
+/** 운영 여부 — 확인됨 / 운영 안 함 / 미확인 */
+export type ChannelStatus = 'yes' | 'no' | 'unknown';
 
 export interface MenuItem {
+  id: string;
   name: string;
-  price: number;
+  /** 대표메뉴 여부 */
+  signature: boolean;
+  prices: ChannelPrices;
+}
+
+export interface DataSourceInfo {
+  /** 'mock' = 가상 데이터, 'db' = 실제 음식점 DB */
+  kind: 'mock' | 'db';
+  /** 실시간 데이터 제공 여부 */
+  realtime: boolean;
+  /** 데이터 갱신시각 (ISO 8601) */
+  updatedAt: string;
 }
 
 export interface Restaurant {
   id: string;
   name: string;
   category: Category;
-  /** 현재 위치로부터의 거리 (미터) — 가상 값 */
-  distanceM: number;
-  /** 최근 30분 주문·방문 수 — 실시간 인기순 예시용 가상 값 */
-  recentOrders: number;
-  rating: number;
-  /** 대표메뉴 */
+  /** 매장 주소 */
+  address: string;
+  /** 매장 좌표 */
+  location: GeoPoint;
+  /** 좌표가 실제 매장 위치로 검증됐는지 — false면 외부 지도 길찾기에 쓰지 않는다 */
+  coordVerified: boolean;
+  /** 채널별 최근 30분 주문 수 — 채널끼리 합산하지 않는다. 키가 없으면 주문정보 없음 (0건이 아님) */
+  recentOrders: Partial<Record<Channel, number>>;
+  /** 채널별 운영 여부 */
+  channelStatus: Record<Channel, ChannelStatus>;
+  /** 평점 — 실제 DB에는 아직 없다 */
+  rating?: number;
+  /** 메뉴 (대표메뉴 + 추가 메뉴) */
   menus: MenuItem[];
-  /** 지원하는 식사 방식 */
+  /** 주문 채널 */
   modes: Mode[];
+  dataSource: DataSourceInfo;
+  /** 최종 확인일 (실제 DB) */
+  lastVerifiedAt?: string | null;
+  /** 관리자가 '정보 확인 필요'로 둔 매장 (영업 여부 등 다시 확인 중) */
+  needsReview?: boolean;
+  /** 현재 탭 채널의 주문 활발도 — 없으면 '주문정보 없음' (0건 아님) */
+  activity?: OrderActivity | null;
   /** 배달 예상 시간(분) — 배달 지원 시 */
   deliveryMinutes?: number;
   deliveryFee?: number;
+  /** 배달 가능 거리(미터) — 배달 주소와의 직선거리 기준 */
+  deliveryRadiusM?: number;
   /** 포장 준비 시간(분) — 포장 지원 시 */
   takeoutMinutes?: number;
+  /** 승인된 배달앱 주문 링크 (관리자가 확인한 것만) */
+  orderLinks?: { baemin?: string; coupangeats?: string };
+  /** 서버 순위 그룹: 0 = 주문 데이터로 순위, 1 = 주문정보 없음·갱신 지연 (거리순) */
+  rankGroup?: number;
+}
+
+/**
+ * 주문 활발도 상태
+ * - active: 최근 주문 확인 / none_recent: 최근 주문 없음 / delayed: 데이터 갱신 지연
+ * - 연동이 없으면 activity 자체가 없다 → '주문정보 없음' (0건이 아님)
+ */
+export type ActivityStatus = 'active' | 'none_recent' | 'delayed';
+
+/** 주문 활발도 — 공개 허용된 실제 주문 집계 (또는 관리자 테스트 집계). 순위는 서버가 계산한다 */
+export interface OrderActivity {
+  /** 'public' = 실제 공개 집계, 'test' = 관리자 테스트 데이터 */
+  scope: 'public' | 'test';
+  status: ActivityStatus;
+  /** 데이터 기준시각 */
+  asOf: string;
+  /** 순위 집계시간 (기본 10분·30분, 관리자 설정) */
+  primaryMinutes: number;
+  secondaryMinutes: number;
+  /** 최소 공개 건수 이상인 창만 들어 있다 */
+  windows: Partial<Record<'10m' | '30m' | '60m' | 'lunch', number>>;
+  /** 배달: 주문이 들어온 제공처 이름 (건수 비공개) */
+  providers: ('pos' | 'baemin' | 'coupangeats' | 'csv')[];
+  /** 이 채널 오늘 판매 수량 순 인기메뉴 (기록이 충분하고 내부 메뉴와 연결된 것만, 수량 비공개) */
+  topMenus: { menuId: string; name: string }[];
+}
+
+/** 기준 위치로부터의 직선거리가 계산된 음식점 */
+export interface RestaurantResult extends Restaurant {
+  distanceM: number;
 }
