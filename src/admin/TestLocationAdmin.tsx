@@ -14,6 +14,7 @@ const CHOICES: { key: Choice; label: string }[] = [
   { key: 'yeoksam', label: '서울 역삼역' },
   { key: 'pangyo', label: '경기 판교역' },
   { key: 'yeouido', label: '서울 여의도역' },
+  { key: 'inje', label: '경남 김해 인제대학교 (현장 시험)' },
 ];
 
 /**

@@ -204,7 +204,7 @@ describe('음식점·메뉴 관리', () => {
 });
 
 describe('테스트 위치', () => {
-  it('5가지 위치를 고를 수 있고, 역 기준 100·200·300m 결과를 보여준다', async () => {
+  it('6가지 위치(실제 GPS·선릉·역삼·판교·여의도·김해 인제대)를 고를 수 있고, 100·200·300m 결과를 보여준다', async () => {
     const user = userEvent.setup();
     const rows = (n: number) =>
       Array.from({ length: n }, (_, i) => ({
@@ -220,7 +220,7 @@ describe('테스트 위치', () => {
     });
     await user.click(await screen.findByRole('tab', { name: '테스트 위치' }));
     const group = screen.getByRole('radiogroup', { name: '테스트 위치' });
-    expect(within(group).getAllByRole('radio')).toHaveLength(5);
+    expect(within(group).getAllByRole('radio')).toHaveLength(6);
     await user.click(within(group).getByLabelText(/서울 역삼역/));
     await user.click(screen.getByRole('button', { name: '여기서 100·200·300m 검색해 보기' }));
     const res = await screen.findByRole('region', { name: '반경별 검색 결과' });

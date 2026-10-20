@@ -184,4 +184,14 @@ select pg_temp.check((select (r ->> 'price_unverified')::int = 1 and (r ->> 'cat
                          and (r ->> 'live_ready')::int = 0 from q where r ->> 'region_id' = 'pangyo'),
                      '판교 점검: 가격 확인일 없음 · 음식 종류 기타 · 운영 여부 미확인 · 실시간 없음');
 reset role;
+-- ───── 김해 인제대 현장 시험 지역 ─────
+insert into public.restaurants (name, category, lat, lng, coord_status, business_status, is_public, dine_in, region_id)
+values ('김해 시험 식당', '한식', 35.248611 - 200 / 111320.0, 128.9025, 'valid', 'open', true, 'yes', 'gimhae_inje');
+set role anon; select set_config('request.jwt.claims', '{"role":"anon"}', false);
+select pg_temp.check((select name from public.search_restaurants(35.248611, 128.9025, 'walk', 300)) = '김해 시험 식당',
+                     '김해 인제대 시험 지역: 로그인 없이 휴대폰 GPS로 검색 가능 (200m 매장)');
+reset role;
+select pg_temp.check((select not live_public from public.regions where id = 'gimhae_inje')
+                     and (select not business_visible from public.market_areas where id = 'inje'),
+                     '김해 시험 지역은 실시간 인기매장·사업자 화면 비공개');
 \echo ALL_STAGE8_TESTS_PASSED

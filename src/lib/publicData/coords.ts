@@ -30,14 +30,18 @@ function converter(crs: SourceCrs): proj4.Converter {
   return c;
 }
 
-/** 중부원점 TM 좌표로 그럴듯한 범위 (대한민국 중부) */
+/**
+ * 중부원점 TM 좌표로 그럴듯한 범위 — 대한민국 전체.
+ * 공공데이터는 지역과 관계없이 중부원점 좌표를 쓰므로 남부(김해 y≈196,000, 부산 y≈189,000)·제주(y<0)·독도(x≈632,000)도 들어와야 한다.
+ */
 function plausibleTm(x: number, y: number): boolean {
-  return x > 50000 && x < 400000 && y > 200000 && y < 700000;
+  return x > -50000 && x < 700000 && y > -100000 && y < 800000;
 }
 
 /** 원본 x·y를 WGS84로 바꾼다. 숫자가 아니거나 범위를 벗어나면 null */
 export function tmToWgs84(x: number, y: number, crs: SourceCrs = 'EPSG:5174'): GeoPoint | null {
-  if (!Number.isFinite(x) || !Number.isFinite(y) || !plausibleTm(x, y)) return null;
+  // 0,0은 공공데이터에서 '좌표 없음'으로 자주 쓰인다
+  if (!Number.isFinite(x) || !Number.isFinite(y) || (x === 0 && y === 0) || !plausibleTm(x, y)) return null;
   const [lng, lat] = converter(crs).forward([x, y]);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   return { lat: Math.round(lat * 1e7) / 1e7, lng: Math.round(lng * 1e7) / 1e7 };

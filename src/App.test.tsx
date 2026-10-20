@@ -100,14 +100,14 @@ describe('App — GPS', () => {
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 
-  it('GPS 오류가 나면 선릉·역삼·판교·여의도 시범 위치를 고를 수 있다', async () => {
+  it('GPS 오류가 나면 선릉·역삼·판교·여의도·김해 인제대 지역을 고를 수 있다', async () => {
     mockGeolocation((_, fail) => fail({ code: 1 }));
     const user = userEvent.setup();
     render(<App />);
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('위치');
     const picker = within(alert).getByRole('group', { name: '시범 위치 선택' });
-    expect(within(picker).getAllByRole('button').map((b) => b.textContent)).toEqual(['📍 선릉', '📍 역삼', '📍 판교', '📍 여의도']);
+    expect(within(picker).getAllByRole('button').map((b) => b.textContent)).toEqual(['📍 선릉', '📍 역삼', '📍 판교', '📍 여의도', '📍 김해 인제대']);
     await user.click(within(picker).getByRole('button', { name: /판교/ }));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByText('판교 (시범 위치)')).toBeInTheDocument();

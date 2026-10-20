@@ -146,7 +146,7 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000
 create temp table rb as select public.market_analysis('seolleung', '7d', false, true) as j;   -- 관리자가 사업자 화면으로 보기
 create temp table ri as select public.market_analysis('seolleung', '7d', false, false) as j;  -- 관리자 내부
 
-select pg_temp.check((select count(*) from public.market_area_list()) = 4, '분석지역 4곳(선릉·역삼·판교·여의도) 선택 가능');
+select pg_temp.check((select count(*) from public.market_area_list() where id in ('seolleung', 'yeoksam', 'pangyo', 'yeouido')) = 4, '분석지역 4곳(선릉·역삼·판교·여의도) 선택 가능');
 select pg_temp.check((select j ->> 'scope' from rb) = 'business' and (select j ->> 'scope' from ri) = 'internal', '사업자/내부 범위 구분');
 select pg_temp.check((select j -> 'area' ->> 'label' from rb) = '기준점 반경 500m', '상권 범위 표시: 기준점 반경 500m');
 

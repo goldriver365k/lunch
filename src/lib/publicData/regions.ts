@@ -1,6 +1,6 @@
 import { STATIONS, type Station } from '../../data/stations';
 
-export type RegionId = 'seolleung_yeoksam' | 'pangyo' | 'yeouido';
+export type RegionId = 'seolleung_yeoksam' | 'pangyo' | 'yeouido' | 'gimhae_inje';
 
 export interface ImportRegion {
   id: RegionId;
@@ -50,6 +50,17 @@ export const IMPORT_REGIONS: ImportRegion[] = [
     addressKeywords: ['영등포구'],
     dongKeywords: ['여의도동'],
     maxPlausibleM: 4000,
+  },
+  {
+    // 운영자 현장 시험용 (실제 GPS·도보 동선·매장 입구 확인). 정식 공개 지역 아님
+    id: 'gimhae_inje',
+    name: '김해 인제대학교 주변 (현장 시험)',
+    primary: false,
+    centers: [STATIONS.inje],
+    radiusM: 1000,
+    addressKeywords: ['김해시'],
+    dongKeywords: ['어방동', '삼방동', '안동', '활천동'],
+    maxPlausibleM: 5000,
   },
 ];
 

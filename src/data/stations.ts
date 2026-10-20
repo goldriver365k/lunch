@@ -1,6 +1,6 @@
 import type { GeoPoint } from '../types';
 
-export type StationId = 'seolleung' | 'yeoksam' | 'pangyo' | 'yeouido';
+export type StationId = 'seolleung' | 'yeoksam' | 'pangyo' | 'yeouido' | 'inje';
 
 export interface Station {
   id: StationId;
@@ -15,10 +15,12 @@ export interface Station {
  * - 역삼역: 위키미디어 공용 37°30′02.83″N 127°02′12.79″E (위키데이터 37.5008, 127.0369)
  * - 판교역: 위키백과 37.394762, 127.111137 (위키데이터 37°23′41.14″N 127°6′40.09″E)
  * - 여의도역: 위키백과·위키데이터 37°31′18″N 126°55′27″E
+ * - 인제대학교(김해, 현장 시험용): 영어 위키백과 35°14′55″N 128°54′09″E — 출처 하나뿐이라 현장에서 다시 확인
  */
 export const STATIONS: Record<StationId, Station> = {
   seolleung: { id: 'seolleung', name: '선릉역', point: { lat: 37.5045, lng: 127.049 } },
   yeoksam: { id: 'yeoksam', name: '역삼역', point: { lat: 37.500786, lng: 127.036886 } },
   pangyo: { id: 'pangyo', name: '판교역', point: { lat: 37.394762, lng: 127.111137 } },
   yeouido: { id: 'yeouido', name: '여의도역', point: { lat: 37.521667, lng: 126.924167 } },
+  inje: { id: 'inje', name: '인제대학교(김해)', point: { lat: 35.248611, lng: 128.9025 } },
 };

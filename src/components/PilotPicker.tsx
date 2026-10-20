@@ -7,7 +7,7 @@ interface Props {
   onPick: (id: PilotAreaId) => void;
 }
 
-/** 선릉·역삼·판교·여의도 시범 위치 버튼 */
+/** 선릉·역삼·판교·여의도 시범 위치 + 김해 인제대(현장 시험) 버튼 */
 export function PilotPicker({ label, selected = null, onPick }: Props) {
   return (
     <div className="pilot-picker" role="group" aria-label={label}>
