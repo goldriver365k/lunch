@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Category, ChannelStatus, GeoPoint, MenuItem, Mode, OrderActivity, Radius, RestaurantResult } from '../../types';
 import { CATEGORIES } from '../constants';
+import { isNaverPlaceUrl } from '../mapLinks';
 
 /** search_restaurants RPC가 돌려주는 행 */
 export interface DbSearchRow {
@@ -46,6 +47,7 @@ export interface DbSearchRow {
   coupangeats_order_url?: string | null;
   rank_group?: number;
   verify_status?: 'unverified' | 'verified' | 'needs_review';
+  naver_place_url?: string | null;
 }
 
 function mapActivity(a: DbSearchRow['activity']): OrderActivity | null {
@@ -104,6 +106,7 @@ export function mapDbRow(row: DbSearchRow): RestaurantResult {
     deliveryFee: row.delivery_fee_krw ?? undefined,
     deliveryMinutes: row.delivery_eta_minutes ?? undefined,
     orderLinks: { baemin: safeUrl(row.baemin_order_url), coupangeats: safeUrl(row.coupangeats_order_url) },
+    naverPlaceUrl: isNaverPlaceUrl(row.naver_place_url) ? row.naver_place_url : undefined,
     rankGroup: row.rank_group,
     distanceM: row.distance_m,
   };

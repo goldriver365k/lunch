@@ -105,6 +105,8 @@ export interface Restaurant {
   takeoutMinutes?: number;
   /** 승인된 배달앱 주문 링크 (관리자가 확인한 것만) */
   orderLinks?: { baemin?: string; coupangeats?: string };
+  /** 관리자가 입력한 네이버 매장 링크 (naver.me·naver.com) — 없으면 네이버 지도 검색으로 연다 */
+  naverPlaceUrl?: string;
   /** 서버 순위 그룹: 0 = 주문 데이터로 순위, 1 = 주문정보 없음·갱신 지연 (거리순) */
   rankGroup?: number;
 }

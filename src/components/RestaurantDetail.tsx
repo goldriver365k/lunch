@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Mode, RestaurantResult } from '../types';
 import { CHANNEL_LABEL } from '../lib/channels';
-import { MAP_PROVIDER_LABEL, routeDestinationOf, type MapProvider, type RoutePlace } from '../lib/mapLinks';
+import { MAP_PROVIDER_LABEL, naverPlaceLink, routeDestinationOf, type MapProvider, type RoutePlace } from '../lib/mapLinks';
 import { formatDistance, formatMenuPrice, formatPrice, menusForChannel, ordersFor, walkMinutes } from '../lib/restaurants';
 import { activitySummary, activityWindows, asOfTime, popularMenus, providerNames } from '../lib/activity';
 
@@ -212,6 +212,18 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
               ))}
             </ul>
           </section>
+        )}
+
+        {r.dataSource.kind === 'db' && (
+          <div className="naver-place">
+            <a className="order-link" href={naverPlaceLink(r).url} target="_blank" rel="noopener noreferrer">
+              네이버에서 메뉴 보기
+            </a>
+            <p className="detail-note">
+              네이버 정보 · 점심뭐먹이 확인한 가격 아님
+              {!naverPlaceLink(r).stored && ' · 검색 결과에서 매장을 골라 주세요'}
+            </p>
+          </div>
         )}
 
         {mode === 'delivery' &&

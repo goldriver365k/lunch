@@ -15,7 +15,7 @@ import {
   type RestaurantEditable,
   type RestaurantFilter,
 } from './adminApi';
-import { kakaoMapPinUrl } from '../lib/mapLinks';
+import { isNaverPlaceUrl, kakaoMapPinUrl } from '../lib/mapLinks';
 import { MenuAdmin } from './MenuAdmin';
 
 const FILTERS: { key: RestaurantFilter; label: string }[] = [
@@ -50,6 +50,7 @@ const EMPTY: RestaurantEditable = {
   delivery_eta_minutes: null,
   baemin_order_url: null,
   coupangeats_order_url: null,
+  naver_place_url: null,
   market_category: null,
   verify_status: 'unverified',
   last_verified_at: null,
@@ -74,6 +75,7 @@ function editableOf(r: AdminRestaurant): RestaurantEditable {
     delivery_eta_minutes: r.delivery_eta_minutes ?? null,
     baemin_order_url: r.baemin_order_url ?? null,
     coupangeats_order_url: r.coupangeats_order_url ?? null,
+    naver_place_url: r.naver_place_url ?? null,
     market_category: r.market_category ?? null,
     verify_status: r.verify_status,
     last_verified_at: r.last_verified_at,
@@ -289,6 +291,8 @@ function RestaurantForm({
     const baemin = v.baemin_order_url?.trim() || null;
     const coupang = v.coupangeats_order_url?.trim() || null;
     if ([baemin, coupang].some((u) => u && !/^https:\/\/\S+$/.test(u))) return setMessage('배달앱 주문 링크는 https:// 주소만 넣을 수 있어요.');
+    const naver = v.naver_place_url?.trim() || null;
+    if (naver && !isNaverPlaceUrl(naver)) return setMessage('네이버 매장 링크는 https://naver.me/… 또는 https://map.naver.com/… 주소만 넣을 수 있어요.');
     if (v.delivery_eta_minutes !== null && (v.delivery_eta_minutes < 1 || v.delivery_eta_minutes > 240))
       return setMessage('배달 예상시간은 1~240분이에요.');
     setBusy(true);
@@ -303,6 +307,7 @@ function RestaurantForm({
         lng,
         baemin_order_url: baemin,
         coupangeats_order_url: coupang,
+        naver_place_url: naver,
       });
       setSaved(row);
       setMessage('저장했어요. 소비자 앱 검색에 바로 반영돼요.');
@@ -452,6 +457,10 @@ function RestaurantForm({
         <label>
           쿠팡이츠 주문 링크 — 매장·배달앱 승인을 받은 경우만 (https://)
           <input type="url" value={v.coupangeats_order_url ?? ''} onChange={(e) => set('coupangeats_order_url', e.target.value || null)} />
+        </label>
+        <label>
+          네이버 매장 링크 — 네이버 지도 앱에서 매장 → 공유 → 링크 복사 (비우면 이름으로 검색)
+          <input type="url" value={v.naver_place_url ?? ''} onChange={(e) => set('naver_place_url', e.target.value || null)} />
         </label>
         <div className="admin-row">
           <label>

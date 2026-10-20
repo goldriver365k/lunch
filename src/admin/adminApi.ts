@@ -36,6 +36,7 @@ export interface AdminRestaurant {
   /** 승인된 배달앱 주문 링크 (https만) */
   baemin_order_url: string | null;
   coupangeats_order_url: string | null;
+  naver_place_url: string | null;
   /** 상권 분석용 음식 종류 (없으면 음식 종류에서 자동 분류) */
   market_category: string | null;
   has_signature_menu: boolean;
@@ -67,6 +68,7 @@ export type RestaurantEditable = Pick<
   | 'delivery_eta_minutes'
   | 'baemin_order_url'
   | 'coupangeats_order_url'
+  | 'naver_place_url'
   | 'market_category'
   | 'verify_status'
   | 'last_verified_at'

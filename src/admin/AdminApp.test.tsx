@@ -141,7 +141,7 @@ describe('음식점·메뉴 관리', () => {
     id: 'r1', license_no: 'L-1', source_ref: null, name: '공공 식당', category: '한식', category_raw: '한식',
     road_address: '서울 강남구 테헤란로 1', lot_address: null, lat: 37.5046, lng: 127.0491, coord_status: 'valid',
     business_status: 'open', business_status_raw: '영업/정상', dine_in: 'unknown', delivery: 'unknown', takeout: 'unknown',
-    delivery_radius_m: null, delivery_fee_krw: null, delivery_eta_minutes: null, baemin_order_url: null, coupangeats_order_url: null, market_category: null,
+    delivery_radius_m: null, delivery_fee_krw: null, delivery_eta_minutes: null, baemin_order_url: null, coupangeats_order_url: null, naver_place_url: null, market_category: null,
     has_signature_menu: false, source: 'public_data', source_name: '공공데이터', source_collected_at: '2026-10-19',
     verify_status: 'unverified', last_verified_at: null, is_public: true, admin_edited: false, region_id: 'seolleung_yeoksam',
     updated_at: '2026-10-19T00:00:00Z',
@@ -188,6 +188,32 @@ describe('음식점·메뉴 관리', () => {
     const mu = queries.find((q) => q.table === 'menus' && q.ops[0][0] === 'update')!;
     expect(mu.ops[0][1][0]).toMatchObject({ price_dine_in: 9500, price_delivery: null, price_verified_at: expect.any(String) });
     expect(mu.ops).toContainEqual(['eq', ['restaurant_id', 'r1']]);
+  });
+
+  it('네이버 매장 링크는 naver.me·naver.com 주소만 저장한다', async () => {
+    const user = userEvent.setup();
+    const { queries } = setup({
+      query: (c) => {
+        const op = c.ops[0][0];
+        if (c.table === 'restaurants' && op === 'select') return { data: [restaurant], error: null, count: 1 };
+        if (c.table === 'restaurants' && op === 'update') return { data: { ...restaurant, ...(c.ops[0][1][0] as object) }, error: null };
+        return { data: [], error: null };
+      },
+    });
+    await user.click(await screen.findByRole('tab', { name: '음식점·메뉴' }));
+    await user.click(await screen.findByRole('button', { name: '공공 식당' }));
+    const form = screen.getByRole('region', { name: '공공 식당 수정' });
+    const input = within(form).getByLabelText(/네이버 매장 링크/);
+    await user.type(input, 'https://evil.example.com/');
+    await user.click(within(form).getByRole('button', { name: '저장' }));
+    expect(within(form).getByRole('status')).toHaveTextContent('네이버 매장 링크는');
+    expect(queries.some((q) => q.table === 'restaurants' && q.ops[0][0] === 'update')).toBe(false);
+    await user.clear(input);
+    await user.type(input, 'https://naver.me/xYz123');
+    await user.click(within(form).getByRole('button', { name: '저장' }));
+    expect(await within(form).findByText(/저장했어요/)).toBeInTheDocument();
+    const upd = queries.find((q) => q.table === 'restaurants' && q.ops[0][0] === 'update')!;
+    expect(upd.ops[0][1][0]).toMatchObject({ naver_place_url: 'https://naver.me/xYz123' });
   });
 
   it('좌표가 정상이 아니면 공개할 수 없다', async () => {

@@ -194,4 +194,20 @@ reset role;
 select pg_temp.check((select not live_public from public.regions where id = 'gimhae_inje')
                      and (select not business_visible from public.market_areas where id = 'inje'),
                      '김해 시험 지역은 실시간 인기매장·사업자 화면 비공개');
+-- ───── 네이버 매장 링크 ─────
+update public.restaurants set naver_place_url = 'https://naver.me/xYz123' where name = '김해 시험 식당';
+do $$ begin
+  update public.restaurants set naver_place_url = 'https://evil.example.com/naver.com/' where name = '김해 시험 식당';
+  raise exception 'FAIL: 네이버가 아닌 주소 저장';
+exception when check_violation then raise notice 'ok  네이버 매장 링크는 naver.me·naver.com https 주소만 저장';
+end $$;
+do $$ begin
+  update public.restaurants set naver_place_url = 'http://naver.me/abc' where name = '김해 시험 식당';
+  raise exception 'FAIL: http 주소 저장';
+exception when check_violation then raise notice 'ok  http 네이버 주소는 거절';
+end $$;
+set role anon; select set_config('request.jwt.claims', '{"role":"anon"}', false);
+select pg_temp.check((select naver_place_url from public.search_restaurants(35.248611, 128.9025, 'walk', 300)) = 'https://naver.me/xYz123',
+                     '검색 결과에 네이버 매장 링크 포함');
+reset role;
 \echo ALL_STAGE8_TESTS_PASSED
