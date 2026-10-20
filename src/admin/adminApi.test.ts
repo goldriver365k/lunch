@@ -50,7 +50,7 @@ describe('DB 작업', () => {
     await saveRestaurant(client as unknown as SupabaseClient, 'x', {
       name: 'A', category: '한식', road_address: null, lot_address: null, lat: null, lng: null,
       business_status: 'open', dine_in: 'yes', delivery: 'no', takeout: 'unknown', delivery_radius_m: null,
-      delivery_fee_krw: null, delivery_eta_minutes: null, baemin_order_url: null, coupangeats_order_url: null, market_category: null,
+      delivery_fee_krw: null, delivery_eta_minutes: null, baemin_order_url: null, coupangeats_order_url: null, naver_place_url: null, market_category: null,
       verify_status: 'verified', last_verified_at: '2026-10-19', is_public: false, region_id: null,
     });
     const update = queries[0].ops.find(([op]) => op === 'update')![1][0] as Record<string, unknown>;

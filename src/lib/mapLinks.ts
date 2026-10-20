@@ -87,6 +87,36 @@ export function naverAppRouteUrl(dest: RoutePlace, origin: RoutePlace | null, ap
   return `nmap://route/walk?${params.toString()}`;
 }
 
+/** 네이버 매장 링크로 받을 수 있는 주소: https + naver.me 또는 naver.com (DB도 같은 규칙으로 막는다) */
+export function isNaverPlaceUrl(u: string | null | undefined): u is string {
+  if (!u) return false;
+  try {
+    const url = new URL(u);
+    return url.protocol === 'https:' && (url.hostname === 'naver.me' || url.hostname === 'naver.com' || url.hostname.endsWith('.naver.com'));
+  } catch {
+    return false;
+  }
+}
+
+/** 주소에서 시·군·구만 뽑는다 (예: '경상남도 김해시 인제로 197' → '김해시', '경기 성남시 분당구 …' → '성남시 분당구') */
+export function addressArea(address: string): string {
+  return address
+    .split(/\s+/)
+    .filter((t) => /[시군구]$/.test(t) && !/(특별시|광역시|특별자치시)$/.test(t))
+    .slice(0, 2)
+    .join(' ');
+}
+
+/**
+ * '네이버에서 메뉴 보기' 주소. 관리자가 저장한 매장 링크가 있으면 그 링크,
+ * 없으면 매장 이름 + 시·군·구로 네이버 지도를 검색한다 (같은 이름 매장이 여럿일 수 있다).
+ */
+export function naverPlaceLink(r: Pick<Restaurant, 'name' | 'address' | 'naverPlaceUrl'>): { url: string; stored: boolean } {
+  if (isNaverPlaceUrl(r.naverPlaceUrl)) return { url: r.naverPlaceUrl, stored: true };
+  const q = [r.name, addressArea(r.address)].filter(Boolean).join(' ');
+  return { url: `https://map.naver.com/p/search/${encodeURIComponent(q)}`, stored: false };
+}
+
 /** 외부로 나가는 동작 — 테스트에서 가로챌 수 있게 객체로 둔다 */
 export const external = {
   /** 웹 URL을 새 탭으로 연다. 팝업이 막히면 현재 탭에서 연다. */

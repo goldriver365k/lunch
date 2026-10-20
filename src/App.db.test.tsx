@@ -553,6 +553,29 @@ describe('8단계 — 시범 서비스 점검', () => {
     expect(screen.getByRole('dialog', { name: /상세정보/ })).toHaveTextContent('정보 확인 필요');
   });
 
+  it('상세화면 ‘네이버에서 메뉴 보기’: 저장된 매장 링크 또는 이름·지역 검색 (네이버 정보임을 밝힌다)', async () => {
+    h.rows = [
+      row('링크있음', 40, 0, STATIONS.seolleung.point, { naver_place_url: 'https://naver.me/abc' }),
+      row('링크없음', 60, 0, STATIONS.seolleung.point),
+    ];
+    gpsAt(STATIONS.seolleung.point);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /링크있음/ }));
+    let d = screen.getByRole('dialog', { name: /상세정보/ });
+    expect(within(d).getByRole('link', { name: '네이버에서 메뉴 보기' })).toHaveAttribute('href', 'https://naver.me/abc');
+    expect(d).toHaveTextContent('점심뭐먹이 확인한 가격 아님');
+    expect(d).not.toHaveTextContent('검색 결과에서 매장을 골라 주세요');
+    await user.click(within(d).getByRole('button', { name: /뒤로|목록/ }));
+    await user.click(await screen.findByRole('button', { name: /링크없음/ }));
+    d = screen.getByRole('dialog', { name: /상세정보/ });
+    expect(within(d).getByRole('link', { name: '네이버에서 메뉴 보기' })).toHaveAttribute(
+      'href',
+      `https://map.naver.com/p/search/${encodeURIComponent('링크없음 강남구')}`,
+    );
+    expect(d).toHaveTextContent('검색 결과에서 매장을 골라 주세요');
+  });
+
   it('배달은 주소별 배달 가능을 확정하지 않고 ‘배달 가능 거리 안’으로 표시한다', async () => {
     h.rows = [row('배달집', 400, 0, STATIONS.seolleung.point, { delivery: 'yes', delivery_radius_m: 1500 })];
     gpsAt(STATIONS.seolleung.point);
