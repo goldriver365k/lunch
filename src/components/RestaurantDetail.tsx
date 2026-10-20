@@ -48,6 +48,14 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
     };
   }, []);
 
+  const naver = r.dataSource.kind === 'db' ? naverPlaceLink(r) : null;
+  const naverNote = naver && (
+    <p className="detail-note naver-note">
+      메뉴는 네이버 정보 · 점심뭐먹이 확인한 가격 아님
+      {!naver.stored && ' · 검색 결과에서 매장을 골라 주세요'}
+    </p>
+  );
+
   const findStore = () => {
     if (!dest) {
       setRouteError(true);
@@ -214,15 +222,13 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
           </section>
         )}
 
-        {r.dataSource.kind === 'db' && (
+        {/* 배달 탭에는 매장찾기가 없어 메뉴 보기만 따로 보여준다 */}
+        {naver && !canFindStore && (
           <div className="naver-place">
-            <a className="order-link" href={naverPlaceLink(r).url} target="_blank" rel="noopener noreferrer">
+            <a className="order-link" href={naver.url} target="_blank" rel="noopener noreferrer">
               네이버에서 메뉴 보기
             </a>
-            <p className="detail-note">
-              네이버 정보 · 점심뭐먹이 확인한 가격 아님
-              {!naverPlaceLink(r).stored && ' · 검색 결과에서 매장을 골라 주세요'}
-            </p>
+            {naverNote}
           </div>
         )}
 
@@ -251,9 +257,19 @@ export function RestaurantDetail({ restaurant: r, mode, originLabel, provider, o
                 매장 위치정보를 확인할 수 없습니다
               </p>
             )}
-            <button type="button" className="find-store-button" onClick={findStore}>
-              매장찾기
-            </button>
+            {/* 메뉴 보기와 매장찾기를 한 줄에 — 메뉴를 보고 바로 길찾기 */}
+            <div className="find-store-actions">
+              {naver && (
+                <a className="menu-view-button" aria-label="네이버에서 메뉴 보기" href={naver.url} target="_blank" rel="noopener noreferrer">
+                  메뉴 보기
+                  <small>네이버</small>
+                </a>
+              )}
+              <button type="button" className="find-store-button" onClick={findStore}>
+                매장찾기
+              </button>
+            </div>
+            {naverNote}
             <p className="find-store-meta">
               {provider ? `${MAP_PROVIDER_LABEL[provider]} 도보 길찾기` : '처음 누르면 지도를 고를 수 있어요'}
               {provider && (
