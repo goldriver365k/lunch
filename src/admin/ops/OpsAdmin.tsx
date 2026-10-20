@@ -33,6 +33,7 @@ const AREA_LABEL: Record<string, string> = {
   yeoksam: '역삼',
   pangyo: '판교',
   yeouido: '여의도',
+  inje: '김해 인제대',
   other: '그 밖의 지역',
   unknown: '위치 없음',
 };

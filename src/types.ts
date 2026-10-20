@@ -23,7 +23,7 @@ export interface GeoPoint {
   lng: number;
 }
 
-export type PilotAreaId = 'seolleung' | 'yeoksam' | 'pangyo' | 'yeouido';
+export type PilotAreaId = 'seolleung' | 'yeoksam' | 'pangyo' | 'yeouido' | 'inje';
 
 export interface PilotArea {
   id: PilotAreaId;

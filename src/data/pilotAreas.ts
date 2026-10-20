@@ -7,6 +7,7 @@ export const PILOT_AREAS: PilotArea[] = [
   { id: 'yeoksam', name: '역삼', center: STATIONS.yeoksam.point },
   { id: 'pangyo', name: '판교', center: STATIONS.pangyo.point },
   { id: 'yeouido', name: '여의도', center: STATIONS.yeouido.point },
+  { id: 'inje', name: '김해 인제대', center: STATIONS.inje.point },
 ];
 
 export function pilotArea(id: PilotAreaId): PilotArea {

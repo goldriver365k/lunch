@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { STATIONS } from '../../data/stations';
-import { distanceM } from '../geo';
+import { destinationPoint, distanceM } from '../geo';
 import { readCsvRows } from './csv';
 import {
   CsvFormatError,
@@ -15,6 +15,8 @@ import {
   type ExistingRow,
 } from './importPlan';
 import { importRegion } from './regions';
+import { tmToWgs84 } from './coords';
+import proj4 from 'proj4';
 
 const sample = () => readCsvRows(new Blob([readFileSync(new URL('./__fixtures__/sample_cp949.csv', import.meta.url))]));
 
@@ -87,6 +89,37 @@ describe('planImport — 선릉역·역삼역 업무지구', () => {
   it('판교 지역을 고르면 판교 매장만', async () => {
     const { rows } = await planImport(sample(), { region: importRegion('pangyo') });
     expect(rows.map((r) => r.name)).toEqual(['시험식당 판교']);
+  });
+});
+
+describe('planImport — 김해 인제대학교 주변 (현장 시험 지역)', () => {
+  // 공공데이터와 같은 중부원점(EPSG:5174) 좌표를 만들어 넣는다
+  const toTm = proj4(
+    '+proj=tmerc +lat_0=38 +lon_0=127.0028902777778 +k=1 +x_0=200000 +y_0=500000 +ellps=bessel +units=m +no_defs +towgs84=-115.80,474.99,674.11,1.16,-2.31,-1.63,6.43',
+    'WGS84',
+  );
+  const tm = (p: { lat: number; lng: number }) => toTm.inverse([p.lng, p.lat]).map((v) => v.toFixed(6)).join(',');
+  const near = destinationPoint(STATIONS.inje.point, 300, 200);
+  const header =
+    '번호,개방서비스명,개방자치단체코드,관리번호,인허가일자,영업상태명,상세영업상태명,폐업일자,소재지전화,소재지전체주소,도로명전체주소,사업장명,업태구분명,좌표정보x(epsg5174),좌표정보y(epsg5174)';
+  const csv = [
+    header,
+    `1,일반음식점,5350000,5350000-101-2020-00001,20200101,영업/정상,영업,,,경상남도 김해시 어방동 1-1,경상남도 김해시 인제로 1 (어방동),시험식당 인제대,한식,${tm(near)}`,
+    `2,일반음식점,3360000,3360000-101-2020-00002,20200101,영업/정상,영업,,,부산광역시 연제구 연산동 1-1,부산광역시 연제구 중앙대로 1 (연산동),시험식당 부산,한식,${tm({ lat: 35.1796, lng: 129.0756 })}`,
+  ].join('\n');
+
+  it('남부 지역 좌표(y≈196,000)도 변환한다 — 이전에는 중부 범위만 받아 좌표 없음으로 분류됨', () => {
+    const [x, y] = tm(STATIONS.inje.point).split(',').map(Number);
+    expect(y).toBeLessThan(200000);
+    const back = tmToWgs84(x, y)!;
+    expect(distanceM(back, STATIONS.inje.point)).toBeLessThan(1);
+  });
+
+  it('인제대 1km 안 매장만 고르고 거리가 맞다 (부산 매장 제외)', async () => {
+    const { rows } = await planImport(readCsvRows(new Blob([csv])), { region: importRegion('gimhae_inje') });
+    expect(rows.map((r) => [r.name, r.coordStatus])).toEqual([['시험식당 인제대', 'valid']]);
+    expect(Math.abs(rows[0].centerDistanceM! - 300)).toBeLessThan(2);
+    expect(Math.abs(distanceM({ lat: rows[0].lat!, lng: rows[0].lng! }, STATIONS.inje.point) - 300)).toBeLessThan(2);
   });
 });
 
