@@ -419,6 +419,9 @@ describe('6단계 — 지금 주문 활발한 순 (서버 순위)', () => {
     expect(d).toHaveTextContent('배민·쿠팡이츠 주문 기준');
     expect(within(d).getByRole('link', { name: '배민에서 주문' })).toHaveAttribute('href', 'https://baemin.example/store/1');
     expect(within(d).queryByRole('link', { name: '쿠팡이츠에서 주문' })).not.toBeInTheDocument();
+    // 배달 탭은 매장찾기 없이 메뉴 보기만
+    expect(within(d).getByRole('link', { name: '네이버에서 메뉴 보기' })).toBeInTheDocument();
+    expect(within(d).queryByRole('button', { name: '매장찾기' })).not.toBeInTheDocument();
   });
 
   it('60초마다 자동 새로고침: 화면이 보일 때만, 검색조건·정렬·열어 둔 상세화면 유지', async () => {
@@ -563,7 +566,10 @@ describe('8단계 — 시범 서비스 점검', () => {
     render(<App />);
     await user.click(await screen.findByRole('button', { name: /링크있음/ }));
     let d = screen.getByRole('dialog', { name: /상세정보/ });
-    expect(within(d).getByRole('link', { name: '네이버에서 메뉴 보기' })).toHaveAttribute('href', 'https://naver.me/abc');
+    const menuLink = within(d).getByRole('link', { name: '네이버에서 메뉴 보기' });
+    expect(menuLink).toHaveAttribute('href', 'https://naver.me/abc');
+    // 메뉴 보기와 매장찾기가 한 줄에 같이 있다
+    expect(menuLink.parentElement).toContainElement(within(d).getByRole('button', { name: '매장찾기' }));
     expect(d).toHaveTextContent('점심뭐먹이 확인한 가격 아님');
     expect(d).not.toHaveTextContent('검색 결과에서 매장을 골라 주세요');
     await user.click(within(d).getByRole('button', { name: /뒤로|목록/ }));

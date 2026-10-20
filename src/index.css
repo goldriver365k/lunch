@@ -310,6 +310,25 @@ button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-c
   font-weight: 800;
 }
 .find-store-button:active { filter: brightness(0.95); }
+.find-store-actions { display: flex; gap: 8px; }
+.find-store-actions .find-store-button { flex: 2; }
+.menu-view-button {
+  flex: 1;
+  min-height: 56px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 800;
+  text-decoration: none;
+  line-height: 1.2;
+}
+.menu-view-button small { font-size: 11px; font-weight: 600; color: var(--muted); }
+.find-store .naver-note { margin: 6px 0 0; text-align: center; font-size: 12px; }
 .find-store-meta { margin: 8px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
 .route-error {
   margin: 0 0 8px;
